@@ -15,6 +15,8 @@ export function FinalCta() {
           height={344}
           className="cta-map"
         />
+        <span className="cta-signal cta-signal-one" aria-hidden="true" />
+        <span className="cta-signal cta-signal-two" aria-hidden="true" />
         <div className="relative z-10 mx-auto max-w-5xl text-center">
           <h2 className="cta-title text-balance font-semibold text-white">
             Enter the memory globe.

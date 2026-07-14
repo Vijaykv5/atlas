@@ -76,10 +76,23 @@ a {
 }
 
 .hero-primary-action {
+  position: relative;
+  overflow: hidden;
   background: #f4b541;
   padding: 0 1.75rem;
   color: #000;
   box-shadow: 0 16px 42px rgba(244, 181, 65, 0.16);
+}
+
+.hero-primary-action::after,
+.launch-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.45), transparent 52%);
+  opacity: 0;
+  transform: translateX(-120%);
 }
 
 .hero-secondary-action {
@@ -90,6 +103,8 @@ a {
 }
 
 .launch-button {
+  position: relative;
+  overflow: hidden;
   margin-top: 2.25rem;
   border: 0;
   background: #fff;
@@ -192,6 +207,67 @@ a {
 .pin-three {
   right: 17%;
   top: 57%;
+}
+
+.story-chip {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.74);
+  padding: 0.48rem 0.75rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.story-chip::before {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 999px;
+  background: #16f196;
+  box-shadow: 0 0 14px rgba(22, 241, 150, 0.72);
+  vertical-align: 0.08rem;
+}
+
+.story-chip-one {
+  left: 13%;
+  top: 18%;
+}
+
+.story-chip-two {
+  right: 12%;
+  bottom: 18%;
+}
+
+.story-trace {
+  position: absolute;
+  z-index: 1;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(22, 241, 150, 0.78), transparent);
+  opacity: 0.55;
+  transform-origin: left center;
+}
+
+.story-trace-one {
+  left: 23%;
+  top: 31%;
+  width: 28%;
+  transform: rotate(7deg);
+}
+
+.story-trace-two {
+  right: 19%;
+  bottom: 31%;
+  width: 25%;
+  transform: rotate(-10deg);
 }
 
 .section-kicker {
@@ -375,6 +451,28 @@ a {
   letter-spacing: 0;
 }
 
+.cta-signal {
+  position: absolute;
+  z-index: 1;
+  width: 9rem;
+  height: 9rem;
+  pointer-events: none;
+  border: 1px solid rgba(244, 181, 65, 0.22);
+  border-radius: 999px;
+  opacity: 0.55;
+}
+
+.cta-signal-one {
+  left: 12%;
+  top: 18%;
+}
+
+.cta-signal-two {
+  right: 10%;
+  bottom: 14%;
+  border-color: rgba(22, 241, 150, 0.2);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .reveal-up,
   .reveal-left,
@@ -433,6 +531,27 @@ a {
     animation: pulse-pin 2.8s ease-out infinite, pin-lift 3.6s ease-in-out infinite;
   }
 
+  .story-chip {
+    animation: chip-float 4.8s ease-in-out infinite;
+  }
+
+  .story-chip-two {
+    animation-delay: 1.2s;
+  }
+
+  .story-trace {
+    animation: trace-flow 3.4s ease-in-out infinite;
+  }
+
+  .story-trace-two {
+    animation-delay: 900ms;
+  }
+
+  .hero-primary-action::after,
+  .launch-button::after {
+    animation: button-shimmer 4.4s ease-in-out infinite;
+  }
+
   .pin-two {
     animation-delay: 0.55s;
   }
@@ -447,6 +566,14 @@ a {
 
   .cta-panel {
     animation: cta-border-glow 5s ease-in-out infinite;
+  }
+
+  .cta-signal {
+    animation: signal-pulse 4.2s ease-out infinite;
+  }
+
+  .cta-signal-two {
+    animation-delay: 1.4s;
   }
 }
 
@@ -576,6 +703,44 @@ a {
   }
 }
 
+@keyframes chip-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@keyframes trace-flow {
+  0%,
+  100% {
+    opacity: 0.18;
+    filter: blur(0);
+  }
+  50% {
+    opacity: 0.85;
+    filter: blur(0.5px);
+  }
+}
+
+@keyframes button-shimmer {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+  68% {
+    opacity: 0.55;
+  }
+  82%,
+  100% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+}
+
 @keyframes scan-map {
   0%,
   28% {
@@ -617,6 +782,18 @@ a {
   }
 }
 
+@keyframes signal-pulse {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
 @media (min-width: 768px) {
   .map-panel,
   .story-panel {
@@ -630,6 +807,12 @@ a {
   }
 
   .memory-card {
+    display: none;
+  }
+
+  .story-chip,
+  .story-trace,
+  .cta-signal {
     display: none;
   }
 

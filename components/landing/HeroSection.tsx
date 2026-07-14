@@ -57,7 +57,7 @@ export function HeroSection() {
           alt="Dotted world map with connected memory points"
           width={984}
           height={344}
-          priority
+          loading="eager"
           className="w-full opacity-90"
         />
         <div className="map-orbit orbit-one" aria-hidden="true" />
@@ -65,6 +65,14 @@ export function HeroSection() {
         <div className="pin pin-one" aria-hidden="true" />
         <div className="pin pin-two" aria-hidden="true" />
         <div className="pin pin-three" aria-hidden="true" />
+        <div className="story-chip story-chip-one" aria-hidden="true">
+          voice note saved
+        </div>
+        <div className="story-chip story-chip-two" aria-hidden="true">
+          photo story minted
+        </div>
+        <div className="story-trace story-trace-one" aria-hidden="true" />
+        <div className="story-trace story-trace-two" aria-hidden="true" />
       </div>
     </section>
   );
