@@ -35,7 +35,7 @@ export function HeroSection() {
         style={revealStyle(TIMING.heroActions)}
       >
         <a
-          href="#how-it-works"
+          href="/atlas"
           className="hero-primary-action inline-flex min-h-12 items-center justify-center rounded-full bg-[#f4b541] px-7 text-sm font-extrabold text-black shadow-[0_16px_42px_rgba(244,181,65,0.16)] no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           Explore Atlas
