@@ -52,7 +52,7 @@ type BuilderGlobeProps = {
 };
 
 const COUNTRY_DATA_URL = "/data/custom.geo.json";
-const GLOBE_TEXTURE_URL = "/textures/earth-blue-marble.jpg";
+const GLOBE_TEXTURE_URL = "/textures/earth-night.jpg";
 const GLOBE_BUMP_URL = "/textures/earth-topology.png";
 const GLOBE_BACKGROUND_URL = "/textures/night-sky.png";
 const DRAG_THRESHOLD_PX = 6;
@@ -407,14 +407,14 @@ function BuilderGlobeComponent({
       const isSelected = normalizedSelectedCountry === canonicalCountry;
 
       if (isSelected) {
-        return "rgba(155, 69, 254, 0.4)";
+        return "rgba(168, 85, 247, 0.68)";
       }
 
       if (isHovered) {
-        return count > 0 ? "rgba(155, 69, 254, 0.24)" : "rgba(255,255,255,0.08)";
+        return count > 0 ? "rgba(147, 51, 234, 0.52)" : "rgba(88, 28, 135, 0.24)";
       }
 
-      return count > 0 ? "rgba(12, 18, 28, 0.84)" : "rgba(8, 10, 16, 0.72)";
+      return count > 0 ? "rgba(88, 28, 135, 0.46)" : "rgba(34, 20, 54, 0.74)";
     },
     [getCountryCount, hoverCountry, normalizedSelectedCountry, resolvePolygonCountry],
   );
@@ -427,14 +427,14 @@ function BuilderGlobeComponent({
       const isSelected = normalizedSelectedCountry === canonicalCountry;
 
       if (isSelected) {
-        return "rgba(255,255,255,0.95)";
+        return "rgba(245, 230, 255, 0.98)";
       }
 
       if (isHovered) {
-        return count > 0 ? "rgba(192,132,252,0.86)" : "rgba(255,255,255,0.22)";
+        return count > 0 ? "rgba(216,180,254,0.9)" : "rgba(168,85,247,0.38)";
       }
 
-      return count > 0 ? "rgba(155,69,254,0.22)" : "rgba(255,255,255,0.07)";
+      return count > 0 ? "rgba(192,132,252,0.38)" : "rgba(147,51,234,0.16)";
     },
     [getCountryCount, hoverCountry, normalizedSelectedCountry, resolvePolygonCountry],
   );
@@ -529,8 +529,8 @@ function BuilderGlobeComponent({
         backgroundImageUrl={GLOBE_BACKGROUND_URL}
         globeImageUrl={GLOBE_TEXTURE_URL}
         bumpImageUrl={GLOBE_BUMP_URL}
-        atmosphereColor={ATLAS_VIOLET_SOFT}
-        atmosphereAltitude={0.11}
+        atmosphereColor={ATLAS_VIOLET}
+        atmosphereAltitude={0.13}
         enablePointerInteraction
         lineHoverPrecision={0.2}
         polygonsData={countries}
@@ -540,7 +540,7 @@ function BuilderGlobeComponent({
           return normalizedSelectedCountry === canonicalCountry ? 0.0064 : 0.005;
         }}
         polygonCapColor={polygonCapColor}
-        polygonSideColor={() => "rgba(0,0,0,0.18)"}
+        polygonSideColor={() => "rgba(23, 12, 38, 0.58)"}
         polygonStrokeColor={polygonStrokeColor}
         polygonLabel={polygonLabel}
         onPolygonClick={handlePolygonClick}
