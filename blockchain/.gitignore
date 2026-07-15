@@ -1,0 +1,9 @@
+node_modules/
+.env
+artifacts/
+cache/
+coverage/
+typechain-types/
+ignition/deployments/
+ignition/.chain-*/
+npm-debug.log*
