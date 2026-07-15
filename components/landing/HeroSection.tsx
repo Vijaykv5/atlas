@@ -20,14 +20,14 @@ export function HeroSection() {
         className="reveal reveal-up relative z-10 max-w-5xl text-balance text-5xl font-semibold leading-[0.95] tracking-normal text-white md:text-7xl lg:text-8xl"
         style={revealStyle(TIMING.heroTitle)}
       >
-        Every place has a story.
+        Every place has a story
       </h1>
       <p
         className="reveal reveal-up relative z-10 mt-6 max-w-3xl text-pretty text-lg leading-8 text-white/68 md:text-xl"
         style={revealStyle(TIMING.heroCopy)}
       >
         Drop a pin anywhere in the world, add photos, video, or voice, and let
-        AI turn the moment into a permanent story on Avalanche.
+        AI turn the moment into a permanent story on Avalanche
       </p>
 
       <div
@@ -41,10 +41,10 @@ export function HeroSection() {
           Explore Atlas
         </a>
         <a
-          href="#archive"
+          href="/atlas?mode=create"
           className="hero-secondary-action inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-7 text-sm font-bold text-white no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
-          View the archive
+          Create Memory
         </a>
       </div>
 

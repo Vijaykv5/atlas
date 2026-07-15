@@ -4,7 +4,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Atlas | Every place has a story",
   description:
-    "Drop memories onto an interactive globe and anchor them permanently on Avalanche.",
+    "Drop memories onto an interactive globe and anchor them permanently on Avalanche",
+  icons: {
+    icon: "/logo/favicon.png",
+    shortcut: "/logo/favicon.png",
+    apple: "/logo/favicon.png",
+  },
 };
 
 export default function RootLayout({
