@@ -45,7 +45,7 @@ type ArcDatum = {
 
 type BuilderGlobeProps = {
   memories: AtlasMemory[];
-  selectedCountry: string | null;
+  highlightedCountry: string | null;
   onCountryClick: (country: string) => void;
   onCountryHover: (country: string | null) => void;
   globeRef?: React.MutableRefObject<GlobeMethods | undefined>;
@@ -153,7 +153,7 @@ function loadCountries(): Promise<GeoFeature[]> {
 
 function BuilderGlobeComponent({
   memories,
-  selectedCountry,
+  highlightedCountry,
   onCountryClick,
   onCountryHover,
   globeRef: externalGlobeRef,
@@ -173,8 +173,8 @@ function BuilderGlobeComponent({
   const lastReportedHoverRef = useRef<string | null>(null);
 
   const normalizedSelectedCountry = useMemo(
-    () => normalizeCountry(selectedCountry),
-    [selectedCountry],
+    () => normalizeCountry(highlightedCountry),
+    [highlightedCountry],
   );
 
   const memoryCountByCountry = useMemo(() => {
@@ -327,6 +327,28 @@ function BuilderGlobeComponent({
       globeRef.current.pointOfView({ lat: coords.lat, lng: coords.lng, altitude: 1.72 }, 900);
     }
   }, [featureByCountry, globeRef, memoryByCountry, normalizedSelectedCountry]);
+
+  useEffect(() => {
+    if (!normalizedSelectedCountry) {
+      return;
+    }
+
+    const startPulseTimer = window.setTimeout(() => {
+      setPulseCountry(normalizedSelectedCountry);
+      if (pulseTimeoutRef.current) {
+        window.clearTimeout(pulseTimeoutRef.current);
+      }
+      pulseTimeoutRef.current = window.setTimeout(() => {
+        setPulseCountry((current) =>
+          current === normalizedSelectedCountry ? null : current,
+        );
+      }, 1300);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(startPulseTimer);
+    };
+  }, [normalizedSelectedCountry]);
 
   useEffect(() => {
     const controls = globeRef.current?.controls();

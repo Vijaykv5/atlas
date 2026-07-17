@@ -10,6 +10,8 @@ import { ToastContainer, toast } from "react-toastify";
 import { ConnectWalletButton } from "@/components/landing/ConnectWalletButton";
 import {
   ATLAS_MEMORIES,
+  COUNTRY_COORDS,
+  type AtlasMemory,
   type CountryStat,
   getGeoCountryName,
   getCountryStats,
@@ -18,6 +20,17 @@ import {
 import { isWalletConnected, type EthereumProvider } from "@/utils/wallet";
 
 type AtlasMode = "explore" | "create";
+
+type SavedMemoryResponse = {
+  id: string;
+  txHash: string;
+  creatorAddress: string;
+  title: string;
+  country: string;
+  kind: string;
+  description: string;
+  createdAt: string;
+};
 
 const AVALANCHE_FUJI = {
   chainId: "0xa869",
@@ -86,6 +99,103 @@ function LoadingScreen({ progress }: { progress: number }) {
   );
 }
 
+function mergeMemoryRows(newRows: SavedMemoryResponse[], currentRows: SavedMemoryResponse[]) {
+  const map = new Map<string, SavedMemoryResponse>();
+
+  for (const memory of [...newRows, ...currentRows]) {
+    map.set(memory.txHash || memory.id, memory);
+  }
+
+  return [...map.values()];
+}
+
+function mergeMemories(newMemories: AtlasMemory[], currentMemories: AtlasMemory[]) {
+  const map = new Map<string, AtlasMemory>();
+
+  for (const memory of [...newMemories, ...currentMemories]) {
+    map.set(memory.txHash || memory.id, memory);
+  }
+
+  return [...map.values()];
+}
+
+function toAtlasMemory(
+  memory: SavedMemoryResponse,
+  countryCoordinates: Record<string, { lat: number; lng: number }>,
+): AtlasMemory | null {
+  const country = normalizeCountry(memory.country);
+  if (!country) {
+    return null;
+  }
+
+  const coordinates = countryCoordinates[country] || COUNTRY_COORDS[country];
+  if (!coordinates) {
+    return null;
+  }
+
+  return {
+    id: `db-${memory.id}`,
+    title: memory.title,
+    country,
+    kind: memory.kind,
+    creator: memory.creatorAddress,
+    txHash: memory.txHash,
+    description: memory.description,
+    createdAt: memory.createdAt,
+    coordinates,
+  };
+}
+
+function getFeatureCenter(feature: {
+  geometry?: { coordinates?: unknown };
+} | null) {
+  const points: Array<{ lat: number; lng: number }> = [];
+  collectLngLatPoints(feature?.geometry?.coordinates, points);
+
+  if (points.length === 0) {
+    return null;
+  }
+
+  const bounds = points.reduce(
+    (currentBounds, point) => ({
+      minLat: Math.min(currentBounds.minLat, point.lat),
+      maxLat: Math.max(currentBounds.maxLat, point.lat),
+      minLng: Math.min(currentBounds.minLng, point.lng),
+      maxLng: Math.max(currentBounds.maxLng, point.lng),
+    }),
+    {
+      minLat: Number.POSITIVE_INFINITY,
+      maxLat: Number.NEGATIVE_INFINITY,
+      minLng: Number.POSITIVE_INFINITY,
+      maxLng: Number.NEGATIVE_INFINITY,
+    },
+  );
+
+  return {
+    lat: (bounds.minLat + bounds.maxLat) / 2,
+    lng: (bounds.minLng + bounds.maxLng) / 2,
+  };
+}
+
+function collectLngLatPoints(value: unknown, points: Array<{ lat: number; lng: number }>) {
+  if (!Array.isArray(value)) {
+    return;
+  }
+
+  if (
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number"
+  ) {
+    points.push({ lng: value[0], lat: value[1] });
+    return;
+  }
+
+  for (const item of value) {
+    collectLngLatPoints(item, points);
+  }
+}
+
 export function GlobeExperience() {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [showLoadscreen, setShowLoadscreen] = useState(true);
@@ -99,10 +209,24 @@ export function GlobeExperience() {
     return params.get("mode") === "create" ? "create" : "explore";
   });
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [focusedCountry, setFocusedCountry] = useState<string | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [searchableCountries, setSearchableCountries] = useState<string[]>([]);
+  const [countryCoordinates, setCountryCoordinates] = useState(COUNTRY_COORDS);
+  const [savedMemoryRows, setSavedMemoryRows] = useState<SavedMemoryResponse[]>([]);
 
-  const countryStats = useMemo(() => getCountryStats(ATLAS_MEMORIES), []);
+  const savedMemories = useMemo(
+    () =>
+      savedMemoryRows
+        .map((memory) => toAtlasMemory(memory, countryCoordinates))
+        .filter((memory): memory is AtlasMemory => Boolean(memory)),
+    [countryCoordinates, savedMemoryRows],
+  );
+  const allMemories = useMemo(
+    () => mergeMemories(savedMemories, ATLAS_MEMORIES),
+    [savedMemories],
+  );
+  const countryStats = useMemo(() => getCountryStats(allMemories), [allMemories]);
   const selectedStat = selectedCountry
     ? countryStats.find((item) => item.country === selectedCountry) || {
         country: selectedCountry,
@@ -112,19 +236,21 @@ export function GlobeExperience() {
   const selectedMemories = useMemo(
     () =>
       selectedCountry
-        ? ATLAS_MEMORIES.filter((memory) => normalizeCountry(memory.country) === selectedCountry)
+        ? allMemories.filter((memory) => normalizeCountry(memory.country) === selectedCountry)
         : [],
-    [selectedCountry],
+    [allMemories, selectedCountry],
   );
 
   const clearSelection = useCallback(() => {
     setSelectedCountry(null);
+    setFocusedCountry(null);
     setHoveredCountry(null);
   }, []);
 
   const changeMode = useCallback((nextMode: AtlasMode) => {
     setMode(nextMode);
     setSelectedCountry(null);
+    setFocusedCountry(null);
     setHoveredCountry(null);
 
     const url = nextMode === "create" ? "/atlas?mode=create" : "/atlas";
@@ -172,9 +298,26 @@ export function GlobeExperience() {
 
     fetch("/data/custom.geo.json")
       .then((response) => response.json())
-      .then((data: { features?: Array<{ properties?: Record<string, unknown> }> }) => {
+      .then(
+        (data: {
+          features?: Array<{
+            properties?: Record<string, unknown>;
+            geometry?: { coordinates?: unknown };
+          }>;
+        }) => {
         if (cancelled) {
           return;
+        }
+
+        const nextCountryCoordinates: Record<string, { lat: number; lng: number }> = {
+          ...COUNTRY_COORDS,
+        };
+        for (const feature of data.features || []) {
+          const country = normalizeCountry(getGeoCountryName(feature));
+          const center = getFeatureCenter(feature);
+          if (country && center) {
+            nextCountryCoordinates[country] = center;
+          }
         }
 
         const countries = Array.from(
@@ -185,8 +328,10 @@ export function GlobeExperience() {
           ),
         ).sort((a, b) => a.localeCompare(b));
 
+        setCountryCoordinates(nextCountryCoordinates);
         setSearchableCountries(countries);
-      })
+        },
+      )
       .catch((error) => {
         console.error("Failed to load searchable countries:", error);
       });
@@ -196,8 +341,40 @@ export function GlobeExperience() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/memories")
+      .then((response) => response.json())
+      .then((data: { memories?: SavedMemoryResponse[] }) => {
+        if (cancelled) {
+          return;
+        }
+
+        setSavedMemoryRows(data.memories || []);
+      })
+      .catch((error) => {
+        console.error("Failed to load saved Atlas memories:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleMemorySaved = useCallback((memory: SavedMemoryResponse) => {
+    setSavedMemoryRows((currentMemories) => mergeMemoryRows([memory], currentMemories));
+  }, []);
+
   const handleSelectCountry = useCallback((country: string) => {
     setSelectedCountry(country);
+    setFocusedCountry(country);
+    setHoveredCountry(null);
+  }, []);
+
+  const handleFocusCountry = useCallback((country: string) => {
+    setFocusedCountry(country);
+    setSelectedCountry(null);
     setHoveredCountry(null);
   }, []);
 
@@ -216,9 +393,9 @@ export function GlobeExperience() {
       {mode === "explore" ? (
         <BuilderGlobe
           globeRef={globeRef}
-          memories={ATLAS_MEMORIES}
-          selectedCountry={selectedCountry}
-          onCountryClick={setSelectedCountry}
+          memories={allMemories}
+          highlightedCountry={selectedCountry || focusedCountry}
+          onCountryClick={handleSelectCountry}
           onCountryHover={setHoveredCountry}
         />
       ) : (
@@ -232,15 +409,15 @@ export function GlobeExperience() {
         <CountrySearch
           key={selectedCountry || "country-search"}
           countries={searchableCountries}
-          selectedCountry={selectedCountry}
-          onSelect={handleSelectCountry}
+          focusedCountry={focusedCountry || selectedCountry}
+          onFocusCountry={handleFocusCountry}
         />
       ) : null}
 
       {mode === "create" ? (
         <CreateMemoryPanel
           countries={searchableCountries}
-          onExplore={() => changeMode("explore")}
+          onMemorySaved={handleMemorySaved}
         />
       ) : null}
 
@@ -248,13 +425,14 @@ export function GlobeExperience() {
         <>
           <CountryRail
             countryStats={countryStats}
-            selectedCountry={selectedCountry}
+            selectedCountry={focusedCountry || selectedCountry}
             onSelect={handleSelectCountry}
           />
           <StatusPill
             selectedCountry={selectedCountry}
+            focusedCountry={focusedCountry}
             hoveredCountry={hoveredCountry}
-            memoryCount={ATLAS_MEMORIES.length}
+            memoryCount={allMemories.length}
           />
         </>
       ) : null}
@@ -307,10 +485,10 @@ function AtlasModeSwitcher({
 
 function CreateMemoryPanel({
   countries,
-  onExplore,
+  onMemorySaved,
 }: {
   countries: string[];
-  onExplore: () => void;
+  onMemorySaved: (memory: SavedMemoryResponse) => void;
 }) {
   const [walletStatus, setWalletStatus] = useState<"checking" | "connected" | "disconnected">(
     "checking",
@@ -319,16 +497,12 @@ function CreateMemoryPanel({
   const [country, setCountry] = useState("");
   const [kind, setKind] = useState("story");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<{
-    tone: "idle" | "success" | "error";
-    message: string;
-  }>({
-    tone: "idle",
-    message: "Required on-chain fields: title, country, type, and memory note.",
-  });
+  const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const walletConnected = walletStatus === "connected";
   const canSubmit =
     walletConnected &&
+    !isSubmitting &&
     title.trim() &&
     country.trim() &&
     kind.trim() &&
@@ -372,10 +546,7 @@ function CreateMemoryPanel({
       setCountry("");
       setKind("story");
       setDescription("");
-      setStatus({
-        tone: "idle",
-        message: "Connect your wallet first to create an on-chain memory.",
-      });
+      setFormError("");
     }, 0);
 
     return () => {
@@ -387,10 +558,7 @@ function CreateMemoryPanel({
     event.preventDefault();
 
     if (!walletConnected) {
-      setStatus({
-        tone: "error",
-        message: "Connect your wallet first, then you can create a memory.",
-      });
+      setFormError("Connect your wallet before publishing.");
       return;
     }
 
@@ -400,29 +568,23 @@ function CreateMemoryPanel({
     const trimmedDescription = description.trim();
 
     if (!trimmedTitle || !trimmedCountry || !trimmedKind || !trimmedDescription) {
-      setStatus({ tone: "error", message: "Fill every on-chain memory field before publishing." });
+      setFormError("Fill every field before publishing.");
       return;
     }
 
     if (!ATLAS_CONTRACT_ADDRESS) {
-      setStatus({
-        tone: "error",
-        message:
-          "Set NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS to publish this memory on-chain.",
-      });
+      setFormError("Set NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS to publish on-chain.");
       return;
     }
 
     if (!window.ethereum) {
-      setStatus({
-        tone: "error",
-        message: "Connect an EVM wallet like Core or MetaMask first.",
-      });
+      setFormError("Connect an EVM wallet like Core or MetaMask first.");
       return;
     }
 
     try {
-      setStatus({ tone: "idle", message: "Preparing wallet transaction..." });
+      setIsSubmitting(true);
+      setFormError("");
       await ensureAvalancheFuji(window.ethereum);
       const [account] = await window.ethereum.request<string[]>({
         method: "eth_requestAccounts",
@@ -448,6 +610,32 @@ function CreateMemoryPanel({
         ],
       });
 
+      const saveResponse = await fetch("/api/memories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          txHash,
+          creatorAddress: account,
+          title: trimmedTitle,
+          country: trimmedCountry,
+          kind: trimmedKind,
+          description: trimmedDescription,
+          contractAddress: ATLAS_CONTRACT_ADDRESS,
+        }),
+      });
+      const savedResult = (await saveResponse.json().catch(() => null)) as {
+        memory?: SavedMemoryResponse;
+        error?: string;
+      } | null;
+
+      if (!saveResponse.ok || !savedResult?.memory) {
+        throw new Error(savedResult?.error || "Memory was submitted on-chain, but DB save failed.");
+      }
+
+      onMemorySaved(savedResult.memory);
+
       toast.success(
         <a
           href={`https://testnet.snowtrace.io/tx/${txHash}`}
@@ -464,15 +652,14 @@ function CreateMemoryPanel({
           toastId: txHash,
         },
       );
-      setStatus({
-        tone: "success",
-        message: `Memory submitted. Transaction: ${txHash.slice(0, 10)}...${txHash.slice(-6)}`,
-      });
+      setTitle("");
+      setCountry("");
+      setKind("story");
+      setDescription("");
     } catch (error) {
-      setStatus({
-        tone: "error",
-        message: error instanceof Error ? error.message : "Transaction was not submitted.",
-      });
+      setFormError(error instanceof Error ? error.message : "Transaction was not submitted.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -488,127 +675,105 @@ function CreateMemoryPanel({
               Create your Atlas memory
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/62">
-              Connect your wallet, write the memory, and store it directly on Avalanche.
+              Write the memory and store it directly on Avalanche.
             </p>
           </div>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#0d0d10]/92 p-5 shadow-2xl shadow-black/30 md:p-8">
+          <div className="rounded-[1.75rem] border border-white/10 bg-[#0d0d10]/92 p-5 shadow-2xl shadow-black/30 md:p-7">
             {walletStatus === "checking" ? (
-              <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+              <div className="grid min-h-[28rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
                 <div className="max-w-md">
                   <h2 className="text-3xl font-semibold leading-tight text-white">
                     Checking wallet
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-white/62">
-                    Atlas is checking your wallet connection before opening the memory form.
-                  </p>
                 </div>
               </div>
             ) : !walletConnected ? (
-              <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
+              <div className="grid min-h-[28rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
                 <div className="max-w-md">
                   <h2 className="text-3xl font-semibold leading-tight text-white">
-                    Connect to create
+                    Wallet required
                   </h2>
-                  <p className="mt-3 text-sm leading-6 text-white/62">
-                    Use the Connect Wallet button in the top-right to unlock the memory form and publish your Atlas memory on-chain.
-                  </p>
                 </div>
               </div>
             ) : (
               <form onSubmit={submitMemory}>
-              <div className="mb-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-white/58">
-                Stored on-chain: <strong className="text-white">title</strong>,{" "}
-                <strong className="text-white">country</strong>,{" "}
-                <strong className="text-white">type</strong>, and{" "}
-                <strong className="text-white">memory note</strong>.
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="sm:col-span-2">
-                  <span className="text-sm font-bold text-white/76">Memory title *</span>
-                  <input
-                    required
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="The night we won together"
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="sm:col-span-2">
+                    <span className="text-sm font-bold text-white/76">Memory title *</span>
+                    <input
+                      required
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      placeholder="The night we won together"
+                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    />
+                  </label>
 
-                <label>
-                  <span className="text-sm font-bold text-white/76">Country *</span>
-                  <input
-                    required
-                    value={country}
-                    onChange={(event) => setCountry(event.target.value)}
-                    placeholder={countries[0] || "Japan"}
-                    list="atlas-countries"
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                  <datalist id="atlas-countries">
-                    {countries.map((item) => (
-                      <option key={item} value={item} />
-                    ))}
-                  </datalist>
-                </label>
+                  <label>
+                    <span className="text-sm font-bold text-white/76">Country *</span>
+                    <input
+                      required
+                      value={country}
+                      onChange={(event) => setCountry(event.target.value)}
+                      placeholder={countries[0] || "Japan"}
+                      list="atlas-countries"
+                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    />
+                    <datalist id="atlas-countries">
+                      {countries.map((item) => (
+                        <option key={item} value={item} />
+                      ))}
+                    </datalist>
+                  </label>
 
-                <label>
-                  <span className="text-sm font-bold text-white/76">Memory type *</span>
-                  <select
-                    required
-                    value={kind}
-                    onChange={(event) => setKind(event.target.value)}
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  <label>
+                    <span className="text-sm font-bold text-white/76">Memory type *</span>
+                    <select
+                      required
+                      value={kind}
+                      onChange={(event) => setKind(event.target.value)}
+                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    >
+                      <option value="story">Story</option>
+                      <option value="reflection">Reflection</option>
+                      <option value="milestone">Milestone</option>
+                      <option value="tribute">Tribute</option>
+                    </select>
+                  </label>
+
+                  <label className="sm:col-span-2">
+                    <span className="text-sm font-bold text-white/76">Memory note *</span>
+                    <textarea
+                      required
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="What happened here?"
+                      rows={4}
+                      className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold leading-6 text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    />
+                  </label>
+                </div>
+
+                {formError ? (
+                  <p
+                    className="mt-5 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm leading-6 text-red-100"
+                    role="alert"
                   >
-                    <option value="story">Story</option>
-                    <option value="reflection">Reflection</option>
-                    <option value="milestone">Milestone</option>
-                    <option value="tribute">Tribute</option>
-                  </select>
-                </label>
+                    {formError}
+                  </p>
+                ) : null}
 
-                <label className="sm:col-span-2">
-                  <span className="text-sm font-bold text-white/76">Memory note *</span>
-                  <textarea
-                    required
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="What happened here?"
-                    rows={4}
-                    className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold leading-6 text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="submit"
-                  disabled={!canSubmit}
-                  className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full bg-[#f4b541] px-6 text-sm font-black text-black transition-transform duration-150 hover:scale-[1.01] disabled:cursor-not-allowed disabled:bg-white/14 disabled:text-white/36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  Create memory on-chain
-                </button>
-                <button
-                  type="button"
-                  onClick={onExplore}
-                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-6 text-sm font-bold text-white/76 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  Explore first
-                </button>
-              </div>
-
-              <p
-                className={`mt-4 rounded-2xl border px-4 py-3 text-sm leading-6 ${
-                  status.tone === "error"
-                    ? "border-red-400/25 bg-red-500/10 text-red-100"
-                    : status.tone === "success"
-                      ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
-                      : "border-white/10 bg-white/[0.035] text-white/58"
-                }`}
-                role="status"
-              >
-                {status.message}
-              </p>
+                <div className="mt-5">
+                  <button
+                    type="submit"
+                    disabled={!canSubmit}
+                    aria-busy={isSubmitting}
+                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#f4b541] px-6 text-sm font-black text-black transition-transform duration-150 hover:scale-[1.01] disabled:cursor-not-allowed disabled:bg-white/14 disabled:text-white/36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    {isSubmitting ? "Publishing..." : "Create memory on-chain"}
+                  </button>
+                </div>
               </form>
             )}
           </div>
@@ -732,14 +897,14 @@ function TopBar() {
 
 function CountrySearch({
   countries,
-  selectedCountry,
-  onSelect,
+  focusedCountry,
+  onFocusCountry,
 }: {
   countries: string[];
-  selectedCountry: string | null;
-  onSelect: (country: string) => void;
+  focusedCountry: string | null;
+  onFocusCountry: (country: string) => void;
 }) {
-  const [query, setQuery] = useState(selectedCountry || "");
+  const [query, setQuery] = useState(focusedCountry || "");
 
   const resolveCountry = useCallback(
     (value: string) => {
@@ -777,10 +942,10 @@ function CountrySearch({
         return;
       }
 
-      onSelect(resolvedCountry);
+      onFocusCountry(resolvedCountry);
       setQuery(resolvedCountry);
     },
-    [onSelect, resolveCountry],
+    [onFocusCountry, resolveCountry],
   );
 
   return (
@@ -859,14 +1024,16 @@ function CountryRail({
 
 function StatusPill({
   selectedCountry,
+  focusedCountry,
   hoveredCountry,
   memoryCount,
 }: {
   selectedCountry: string | null;
+  focusedCountry: string | null;
   hoveredCountry: string | null;
   memoryCount: number;
 }) {
-  const label = selectedCountry || hoveredCountry || "Auto-rotating";
+  const label = selectedCountry || focusedCountry || hoveredCountry || "Auto-rotating";
 
   return (
     <div className="pointer-events-none absolute bottom-24 right-4 z-20 rounded-full border border-white/10 bg-black/48 px-4 py-3 text-xs text-white/64 shadow-2xl shadow-black/30 backdrop-blur-md">

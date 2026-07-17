@@ -15,12 +15,16 @@ Set:
 
 ```env
 NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS=
+DB_URL=
 ```
 
 `NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS` is required by the browser when submitting
 `createMemory(string title, string country, string kind, string description)`
 through the connected wallet. Use the Atlas contract address printed by the Fuji
 deploy.
+
+`DB_URL` is required by `/api/memories` to store submitted memories in Neon after
+the wallet returns an Avalanche Fuji transaction hash.
 
 To deploy the contract, configure the blockchain workspace:
 

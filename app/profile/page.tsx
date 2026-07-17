@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ConnectWalletButton } from "@/components/landing/ConnectWalletButton";
+import { ProfileMemories } from "@/components/profile/ProfileMemories";
 
 export const metadata = {
   title: "Atlas Profile",
@@ -35,9 +36,11 @@ export default function ProfilePage() {
           Your Atlas profile
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-white/62">
-          This is where your connected wallet, saved memories, and on-chain Atlas activity can live.
+          Review the on-chain memories created by your connected wallet.
         </p>
       </section>
+
+      <ProfileMemories />
     </main>
   );
 }

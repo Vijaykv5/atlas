@@ -2,7 +2,11 @@ export type AtlasMemory = {
   id: string;
   title: string;
   country: string;
-  kind: "photo" | "voice" | "video" | "story";
+  kind: string;
+  creator?: string;
+  txHash?: string;
+  description?: string;
+  createdAt?: string;
   coordinates: {
     lat: number;
     lng: number;

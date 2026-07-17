@@ -30,14 +30,14 @@ export function FinalCta() {
               href="/atlas"
               className="launch-button mt-0 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-8 text-sm font-extrabold text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
-              Explore Globe
+              Explore Atlas
             </a>
-            <a
+            {/* <a
               href="/atlas?mode=create"
               className="hero-secondary-action inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-8 text-sm font-bold text-white no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
               Create Memory
-            </a>
+            </a> */}
           </div>
         </div>
       </div>
