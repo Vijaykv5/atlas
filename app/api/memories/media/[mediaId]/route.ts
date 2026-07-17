@@ -22,6 +22,24 @@ function getSQL() {
   return neon(databaseURL);
 }
 
+async function ensureAssetsTable() {
+  const sql = getSQL();
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS atlas_memory_assets (
+      media_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      country TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      description TEXT NOT NULL,
+      image_data_url TEXT NOT NULL,
+      voice_data_url TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
 function dataURLToImageResponse(dataURL: string) {
   const match = dataURL.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
 
@@ -51,17 +69,27 @@ export async function GET(
       return NextResponse.json({ error: "Invalid media ID." }, { status: 400 });
     }
 
+    await ensureAssetsTable();
     const sql = getSQL();
     const legacyReference = `db:${mediaId}`;
     const urlSuffix = `%/${mediaId}`;
-    const rows = await sql`
+    const assetRows = await sql`
       SELECT image_data_url
-      FROM atlas_memories
-      WHERE image_cid = ${legacyReference}
-        OR image_cid LIKE ${urlSuffix}
-      ORDER BY created_at DESC
+      FROM atlas_memory_assets
+      WHERE media_id = ${mediaId}
       LIMIT 1
     `;
+    const memoryRows = assetRows.length
+      ? []
+      : await sql`
+          SELECT image_data_url
+          FROM atlas_memories
+          WHERE image_cid = ${legacyReference}
+            OR image_cid LIKE ${urlSuffix}
+          ORDER BY created_at DESC
+          LIMIT 1
+        `;
+    const rows = assetRows.length ? assetRows : memoryRows;
     const imageDataUrl = String(rows[0]?.image_data_url || "");
     const imageResponse = dataURLToImageResponse(imageDataUrl);
 

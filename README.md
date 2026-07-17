@@ -34,11 +34,13 @@ and image from off-site, so `http://localhost:3000` will not render in external
 wallets or explorers.
 
 `DB_URL` is required by `/api/memories` to store submitted memories in Neon after
-the wallet returns an Avalanche Fuji transaction hash. When the transaction
-receipt is available, the app also stores the minted NFT token ID. The
-`/api/memories/metadata/[mediaId]` route returns the NFT title, description,
-image, and attributes. The `/api/memories/media/[mediaId]` route serves stored
-memory images to wallets and explorers.
+the wallet returns an Avalanche Fuji transaction hash. Before the wallet
+transaction is sent, `/api/memories/assets` stores the NFT title, description,
+attributes, and image in Neon so explorers can fetch metadata immediately after
+the mint. When the transaction receipt is available, the app also stores the
+minted NFT token ID. The `/api/memories/metadata/[mediaId]` route returns the NFT
+title, description, image, and attributes. The `/api/memories/media/[mediaId]`
+route serves stored memory images to wallets and explorers.
 
 To deploy the contract, configure the blockchain workspace:
 

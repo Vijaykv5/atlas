@@ -597,6 +597,15 @@ function CreateMemoryPanel({
       ]);
       const mediaId = await createMediaId(imageDataUrl);
       const metadataUrl = createNftMetadataUrl(mediaId);
+      await saveNftAsset({
+        mediaId,
+        title: trimmedTitle,
+        country: trimmedCountry,
+        kind: trimmedKind,
+        description: trimmedDescription,
+        imageDataUrl,
+        voiceDataUrl,
+      });
       await ensureAvalancheFuji(window.ethereum);
       const [account] = await window.ethereum.request<string[]>({
         method: "eth_requestAccounts",
@@ -1056,6 +1065,31 @@ function createNftMetadataUrl(mediaId: string) {
   const publicAppUrl = getPublicAppUrl();
 
   return `${publicAppUrl}/api/memories/metadata/${mediaId}`;
+}
+
+async function saveNftAsset(asset: {
+  mediaId: string;
+  title: string;
+  country: string;
+  kind: string;
+  description: string;
+  imageDataUrl: string;
+  voiceDataUrl: string;
+}) {
+  const response = await fetch("/api/memories/assets", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(asset),
+  });
+  const result = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(result?.error || "Could not prepare NFT metadata.");
+  }
 }
 
 function getPublicAppUrl() {
