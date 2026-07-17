@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GlobeMethods } from "react-globe.gl";
+import { ToastContainer, toast } from "react-toastify";
 import { ConnectWalletButton } from "@/components/landing/ConnectWalletButton";
 import {
   ATLAS_MEMORIES,
@@ -317,20 +318,21 @@ function CreateMemoryPanel({
   const [title, setTitle] = useState("");
   const [country, setCountry] = useState("");
   const [kind, setKind] = useState("story");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [metadataURI, setMetadataURI] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<{
     tone: "idle" | "success" | "error";
     message: string;
   }>({
     tone: "idle",
-    message:
-      "Required on-chain fields: latitude, longitude, and IPFS metadata URI.",
+    message: "Required on-chain fields: title, country, type, and memory note.",
   });
   const walletConnected = walletStatus === "connected";
-  const canSubmit = walletConnected && latitude.trim() && longitude.trim() && metadataURI.trim();
+  const canSubmit =
+    walletConnected &&
+    title.trim() &&
+    country.trim() &&
+    kind.trim() &&
+    description.trim();
 
   const refreshWalletConnection = useCallback(async () => {
     const connected = await isWalletConnected();
@@ -369,9 +371,6 @@ function CreateMemoryPanel({
       setTitle("");
       setCountry("");
       setKind("story");
-      setLatitude("");
-      setLongitude("");
-      setMetadataURI("");
       setDescription("");
       setStatus({
         tone: "idle",
@@ -395,24 +394,13 @@ function CreateMemoryPanel({
       return;
     }
 
-    const lat = Number(latitude);
-    const lng = Number(longitude);
+    const trimmedTitle = title.trim();
+    const trimmedCountry = country.trim();
+    const trimmedKind = kind.trim();
+    const trimmedDescription = description.trim();
 
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-      setStatus({ tone: "error", message: "Latitude must be between -90 and 90." });
-      return;
-    }
-
-    if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-      setStatus({ tone: "error", message: "Longitude must be between -180 and 180." });
-      return;
-    }
-
-    if (!metadataURI.startsWith("ipfs://")) {
-      setStatus({
-        tone: "error",
-        message: "Use an IPFS URI, for example ipfs://bafy...",
-      });
+    if (!trimmedTitle || !trimmedCountry || !trimmedKind || !trimmedDescription) {
+      setStatus({ tone: "error", message: "Fill every on-chain memory field before publishing." });
       return;
     }
 
@@ -451,14 +439,31 @@ function CreateMemoryPanel({
             from: account,
             to: ATLAS_CONTRACT_ADDRESS,
             data: encodeCreateMemoryCalldata(
-              toE6(lat),
-              toE6(lng),
-              metadataURI.trim(),
+              trimmedTitle,
+              trimmedCountry,
+              trimmedKind,
+              trimmedDescription,
             ),
           },
         ],
       });
 
+      toast.success(
+        <a
+          href={`https://testnet.snowtrace.io/tx/${txHash}`}
+          target="_blank"
+          rel="noreferrer"
+          className="block text-sm leading-6 text-white no-underline"
+        >
+          <span className="block font-black">Memory creation successful</span>
+          <span className="block text-white/72">
+            View transaction {txHash.slice(0, 10)}...{txHash.slice(-6)} on Avalanche Fuji
+          </span>
+        </a>,
+        {
+          toastId: txHash,
+        },
+      );
       setStatus({
         tone: "success",
         message: `Memory submitted. Transaction: ${txHash.slice(0, 10)}...${txHash.slice(-6)}`,
@@ -472,54 +477,57 @@ function CreateMemoryPanel({
   };
 
   return (
-    <section className="absolute inset-x-4 bottom-4 top-44 z-20 mx-auto max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-black/62 p-5 shadow-2xl shadow-black/45 backdrop-blur-xl sm:top-28 md:p-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-[#f4b541]">
-            create on-chain
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold leading-none text-white md:text-6xl">
-            Create your Atlas memory
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/62">
-            Connect your wallet, add a location, and anchor your IPFS memory metadata on Avalanche.
-          </p>
-        </div>
+    <>
+      <section className="absolute inset-x-4 bottom-4 top-44 z-20 mx-auto max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-black/62 p-5 shadow-2xl shadow-black/45 backdrop-blur-xl sm:top-28 md:p-8">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-6 text-center">
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-[#f4b541]">
+              create on-chain
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold leading-none text-white md:text-6xl">
+              Create your Atlas memory
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/62">
+              Connect your wallet, write the memory, and store it directly on Avalanche.
+            </p>
+          </div>
 
-        <div className="rounded-[1.75rem] border border-white/10 bg-[#0d0d10]/92 p-5 shadow-2xl shadow-black/30 md:p-8">
-          {walletStatus === "checking" ? (
-            <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
-              <div className="max-w-md">
-                <h2 className="text-3xl font-semibold leading-tight text-white">
-                  Checking wallet
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Atlas is checking your wallet connection before opening the memory form.
-                </p>
+          <div className="rounded-[1.75rem] border border-white/10 bg-[#0d0d10]/92 p-5 shadow-2xl shadow-black/30 md:p-8">
+            {walletStatus === "checking" ? (
+              <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+                <div className="max-w-md">
+                  <h2 className="text-3xl font-semibold leading-tight text-white">
+                    Checking wallet
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-white/62">
+                    Atlas is checking your wallet connection before opening the memory form.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : !walletConnected ? (
-            <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
-              <div className="max-w-md">
-                <h2 className="text-3xl font-semibold leading-tight text-white">
-                  Connect to create
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-white/62">
-                  Use the Connect Wallet button in the top-right to unlock the memory form and publish your Atlas pin on-chain.
-                </p>
+            ) : !walletConnected ? (
+              <div className="grid min-h-[34rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
+                <div className="max-w-md">
+                  <h2 className="text-3xl font-semibold leading-tight text-white">
+                    Connect to create
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-white/62">
+                    Use the Connect Wallet button in the top-right to unlock the memory form and publish your Atlas memory on-chain.
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <form onSubmit={submitMemory}>
+            ) : (
+              <form onSubmit={submitMemory}>
               <div className="mb-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-white/58">
-                Required on-chain: <strong className="text-white">latitude</strong>,{" "}
-                <strong className="text-white">longitude</strong>, and{" "}
-                <strong className="text-white">IPFS metadata URI</strong>.
+                Stored on-chain: <strong className="text-white">title</strong>,{" "}
+                <strong className="text-white">country</strong>,{" "}
+                <strong className="text-white">type</strong>, and{" "}
+                <strong className="text-white">memory note</strong>.
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="sm:col-span-2">
-                  <span className="text-sm font-bold text-white/76">Memory title</span>
+                  <span className="text-sm font-bold text-white/76">Memory title *</span>
                   <input
+                    required
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     placeholder="The night we won together"
@@ -528,8 +536,9 @@ function CreateMemoryPanel({
                 </label>
 
                 <label>
-                  <span className="text-sm font-bold text-white/76">Country</span>
+                  <span className="text-sm font-bold text-white/76">Country *</span>
                   <input
+                    required
                     value={country}
                     onChange={(event) => setCountry(event.target.value)}
                     placeholder={countries[0] || "Japan"}
@@ -544,57 +553,24 @@ function CreateMemoryPanel({
                 </label>
 
                 <label>
-                  <span className="text-sm font-bold text-white/76">Memory type</span>
+                  <span className="text-sm font-bold text-white/76">Memory type *</span>
                   <select
+                    required
                     value={kind}
                     onChange={(event) => setKind(event.target.value)}
                     className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
                     <option value="story">Story</option>
-                    <option value="photo">Photo</option>
-                    <option value="voice">Voice</option>
-                    <option value="video">Video</option>
+                    <option value="reflection">Reflection</option>
+                    <option value="milestone">Milestone</option>
+                    <option value="tribute">Tribute</option>
                   </select>
                 </label>
 
-                <label>
-                  <span className="text-sm font-bold text-white/76">Latitude *</span>
-                  <input
-                    required
-                    value={latitude}
-                    onChange={(event) => setLatitude(event.target.value)}
-                    placeholder="1.352083"
-                    inputMode="decimal"
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                </label>
-
-                <label>
-                  <span className="text-sm font-bold text-white/76">Longitude *</span>
-                  <input
-                    required
-                    value={longitude}
-                    onChange={(event) => setLongitude(event.target.value)}
-                    placeholder="103.625213"
-                    inputMode="decimal"
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                </label>
-
                 <label className="sm:col-span-2">
-                  <span className="text-sm font-bold text-white/76">IPFS metadata URI *</span>
-                  <input
-                    required
-                    value={metadataURI}
-                    onChange={(event) => setMetadataURI(event.target.value)}
-                    placeholder="ipfs://bafy..."
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  />
-                </label>
-
-                <label className="sm:col-span-2">
-                  <span className="text-sm font-bold text-white/76">Memory note</span>
+                  <span className="text-sm font-bold text-white/76">Memory note *</span>
                   <textarea
+                    required
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="What happened here?"
@@ -633,11 +609,30 @@ function CreateMemoryPanel({
               >
                 {status.message}
               </p>
-            </form>
-          )}
+              </form>
+            )}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+      <ToastContainer
+        position="bottom-right"
+        autoClose={false}
+        closeOnClick={false}
+        draggable={false}
+        theme="dark"
+        newestOnTop
+        className="atlas-toast-container"
+        toastClassName="atlas-toast"
+        style={{
+          bottom: "1.25rem",
+          left: "auto",
+          right: "1.25rem",
+          top: "auto",
+          transform: "none",
+          width: "min(calc(100vw - 2rem), 28rem)",
+        }}
+      />
+    </>
   );
 }
 
@@ -671,24 +666,32 @@ async function ensureAvalancheFuji(provider: EthereumProvider) {
   }
 }
 
-function toE6(value: number) {
-  return Math.round(value * 1_000_000);
-}
+function encodeCreateMemoryCalldata(
+  title: string,
+  country: string,
+  kind: string,
+  description: string,
+) {
+  const selector = "8937a0d7";
+  const encodedTitle = encodeString(title);
+  const encodedCountry = encodeString(country);
+  const encodedKind = encodeString(kind);
+  const encodedDescription = encodeString(description);
+  const titleOffset = encodeUint256(BigInt(128));
+  const countryOffset = encodeUint256(BigInt(128 + encodedTitle.length / 2));
+  const kindOffset = encodeUint256(
+    BigInt(128 + encodedTitle.length / 2 + encodedCountry.length / 2),
+  );
+  const descriptionOffset = encodeUint256(
+    BigInt(
+      128 +
+        encodedTitle.length / 2 +
+        encodedCountry.length / 2 +
+        encodedKind.length / 2,
+    ),
+  );
 
-function encodeCreateMemoryCalldata(latitudeE6: number, longitudeE6: number, metadataURI: string) {
-  const selector = "1309910b";
-  const encodedLatitude = encodeInt256(BigInt(latitudeE6));
-  const encodedLongitude = encodeInt256(BigInt(longitudeE6));
-  const encodedOffset = encodeUint256(BigInt(96));
-  const encodedMetadata = encodeString(metadataURI);
-
-  return `0x${selector}${encodedLatitude}${encodedLongitude}${encodedOffset}${encodedMetadata}`;
-}
-
-function encodeInt256(value: bigint) {
-  const maxUint256 = BigInt(1) << BigInt(256);
-  const encoded = value < BigInt(0) ? maxUint256 + value : value;
-  return encoded.toString(16).padStart(64, "0");
+  return `0x${selector}${titleOffset}${countryOffset}${kindOffset}${descriptionOffset}${encodedTitle}${encodedCountry}${encodedKind}${encodedDescription}`;
 }
 
 function encodeUint256(value: bigint) {

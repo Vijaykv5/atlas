@@ -1,6 +1,6 @@
 # Atlas Blockchain
 
-Atlas stores immutable memory anchors on Avalanche Fuji. The contract records the creator wallet, E6 latitude, E6 longitude, IPFS metadata URI, and block timestamp. Photos, videos, voice notes, generated stories, and other large content stay off-chain on IPFS.
+Atlas stores immutable memory anchors on Avalanche Fuji. The contract records the creator wallet, memory title, country, memory type, note, and block timestamp directly on-chain.
 
 ## Install
 
@@ -66,7 +66,7 @@ Verify the deployment by opening the printed Snowtrace testnet URL.
 
 ## Contract Functions
 
-`createMemory(int32 latitudeE6, int32 longitudeE6, string calldata metadataURI)` publishes an immutable memory and returns its new ID. IDs start at `1`.
+`createMemory(string calldata title, string calldata country, string calldata kind, string calldata description)` publishes an immutable memory and returns its new ID. IDs start at `1`.
 
 `getMemory(uint256 memoryId)` returns a stored memory and reverts for ID `0` or an ID that has not been published.
 
@@ -74,41 +74,30 @@ Verify the deployment by opening the printed Snowtrace testnet URL.
 
 `memoryCount()` returns the total number of published memories.
 
-## Coordinate E6 Format
+## Memory Format
 
-Coordinates use signed integers with six fixed decimals:
+The user-facing memory fields are stored directly on-chain:
 
 ```text
-Latitude: 1.352083
-Longitude: 103.625213
-
 Contract arguments:
 
-latitudeE6: 1352083
-longitudeE6: 103625213
-metadataURI: ipfs://bafy...
+title: The night we won together
+country: Singapore
+kind: story
+description: A permanent memory stored directly on Avalanche.
 ```
 
-Valid latitude range: `-90_000_000` to `90_000_000`.
+The contract rejects empty title, country, kind, and description values.
 
-Valid longitude range: `-180_000_000` to `180_000_000`.
-
-## On-Chain Vs IPFS
+## On-Chain Storage
 
 Stored on-chain:
 
 - Creator address
-- Latitude and longitude in E6 format
-- IPFS metadata URI
+- Memory title
+- Country
+- Memory type
+- Memory note
 - Block timestamp
-
-Stored on IPFS:
-
-- Photos
-- Videos
-- Voice notes
-- AI story text
-- Location display names
-- Any rich metadata JSON
 
 The contract has no owner, admin, payments, tokens, NFTs, external calls, upgradeability, edit path, or delete path.

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import "react-toastify/dist/ReactToastify.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Atlas | Every place has a story",
+  title: "Atlas | Every memory can last",
   description:
-    "Drop memories onto an interactive globe and anchor them permanently on Avalanche",
+    "Write memories and anchor them permanently on Avalanche",
   icons: {
     icon: "/logo/favicon.png",
     shortcut: "/logo/favicon.png",

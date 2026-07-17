@@ -1,4 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Atlas
+
+Atlas lets users write a memory and store its title, country, type, and note
+directly on Avalanche Fuji through the Atlas contract.
+
+## Environment
+
+Create the app env file:
+
+```bash
+cp .env.example .env.local
+```
+
+Set:
+
+```env
+NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS=
+```
+
+`NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS` is required by the browser when submitting
+`createMemory(string title, string country, string kind, string description)`
+through the connected wallet. Use the Atlas contract address printed by the Fuji
+deploy.
+
+To deploy the contract, configure the blockchain workspace:
+
+```bash
+cd blockchain
+cp .env.example .env
+```
+
+Set:
+
+```env
+FUJI_RPC_URL=https://api.avax-test.network/ext/bc/C/rpc
+DEPLOYER_PRIVATE_KEY=
+```
+
+`DEPLOYER_PRIVATE_KEY` must be a funded Avalanche Fuji test wallet private key.
+Never commit `.env`, never share a private key, and never enter a seed phrase.
 
 ## Getting Started
 

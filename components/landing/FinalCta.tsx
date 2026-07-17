@@ -22,8 +22,8 @@ export function FinalCta() {
             Enter the memory globe
           </h2>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-8 text-white/64">
-            Explore memories from real places, or turn your own moment into an
-            on-chain Atlas pin.
+            Explore the living archive, or turn your own moment into an
+            on-chain Atlas memory.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a

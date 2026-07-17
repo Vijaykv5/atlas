@@ -49,9 +49,9 @@ export const COUNTRY_COORDS: Record<string, { lat: number; lng: number }> = {
 export const ATLAS_MEMORIES: AtlasMemory[] = [
   {
     id: "lima-sunrise",
-    title: "Sunrise voice note above Lima",
+    title: "Sunrise memory above Lima",
     country: "Peru",
-    kind: "voice",
+    kind: "story",
     coordinates: { lat: -12.0464, lng: -77.0428 },
   },
   {

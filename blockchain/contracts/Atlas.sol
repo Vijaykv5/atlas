@@ -2,45 +2,37 @@
 pragma solidity ^0.8.24;
 
 /// @title Atlas
-/// @notice Permissionless registry for immutable memories anchored to real-world coordinates.
-/// @dev Stores only metadata URIs. Media and rich content should remain off-chain on IPFS.
+/// @notice Permissionless registry for immutable memories stored directly on-chain.
 contract Atlas {
-    /// @notice Minimum latitude in E6 fixed-point format.
-    int32 public constant MIN_LATITUDE_E6 = -90_000_000;
-
-    /// @notice Maximum latitude in E6 fixed-point format.
-    int32 public constant MAX_LATITUDE_E6 = 90_000_000;
-
-    /// @notice Minimum longitude in E6 fixed-point format.
-    int32 public constant MIN_LONGITUDE_E6 = -180_000_000;
-
-    /// @notice Maximum longitude in E6 fixed-point format.
-    int32 public constant MAX_LONGITUDE_E6 = 180_000_000;
-
     /// @notice A published Atlas memory.
     /// @param id Unique memory ID. IDs start at 1.
     /// @param creator Wallet that published the memory.
-    /// @param latitudeE6 Latitude encoded as a signed integer with six decimals.
-    /// @param longitudeE6 Longitude encoded as a signed integer with six decimals.
-    /// @param metadataURI IPFS URI pointing to the memory metadata.
+    /// @param title Short title for the memory.
+    /// @param country Country associated with the memory.
+    /// @param kind Memory type selected by the creator.
+    /// @param description Full on-chain memory note.
     /// @param createdAt Block timestamp captured when the memory was published.
     struct Memory {
         uint256 id;
         address creator;
-        int32 latitudeE6;
-        int32 longitudeE6;
-        string metadataURI;
+        string title;
+        string country;
+        string kind;
+        string description;
         uint64 createdAt;
     }
 
-    /// @notice Reverts when the metadata URI is empty.
-    error EmptyMetadataURI();
+    /// @notice Reverts when the title is empty.
+    error EmptyTitle();
 
-    /// @notice Reverts when latitude is outside [-90, 90] degrees in E6 format.
-    error InvalidLatitude();
+    /// @notice Reverts when the country is empty.
+    error EmptyCountry();
 
-    /// @notice Reverts when longitude is outside [-180, 180] degrees in E6 format.
-    error InvalidLongitude();
+    /// @notice Reverts when the memory type is empty.
+    error EmptyKind();
+
+    /// @notice Reverts when the description is empty.
+    error EmptyDescription();
 
     /// @notice Reverts when a memory ID has not been published.
     error MemoryDoesNotExist();
@@ -49,9 +41,10 @@ contract Atlas {
     event MemoryCreated(
         uint256 indexed memoryId,
         address indexed creator,
-        int32 latitudeE6,
-        int32 longitudeE6,
-        string metadataURI,
+        string title,
+        string country,
+        string kind,
+        string description,
         uint64 createdAt
     );
 
@@ -61,26 +54,32 @@ contract Atlas {
     mapping(uint256 => Memory) private memories;
     mapping(address => uint256[]) private memoriesByCreator;
 
-    /// @notice Publish an immutable memory anchored to latitude and longitude.
-    /// @param latitudeE6 Latitude encoded with six fixed decimals.
-    /// @param longitudeE6 Longitude encoded with six fixed decimals.
-    /// @param metadataURI IPFS URI for the off-chain metadata JSON.
+    /// @notice Publish an immutable memory stored directly on-chain.
+    /// @param title Short title for the memory.
+    /// @param country Country associated with the memory.
+    /// @param kind Memory type selected by the creator.
+    /// @param description Full on-chain memory note.
     /// @return memoryId The newly assigned memory ID.
     function createMemory(
-        int32 latitudeE6,
-        int32 longitudeE6,
-        string calldata metadataURI
+        string calldata title,
+        string calldata country,
+        string calldata kind,
+        string calldata description
     ) external returns (uint256 memoryId) {
-        if (latitudeE6 < MIN_LATITUDE_E6 || latitudeE6 > MAX_LATITUDE_E6) {
-            revert InvalidLatitude();
+        if (bytes(title).length == 0) {
+            revert EmptyTitle();
         }
 
-        if (longitudeE6 < MIN_LONGITUDE_E6 || longitudeE6 > MAX_LONGITUDE_E6) {
-            revert InvalidLongitude();
+        if (bytes(country).length == 0) {
+            revert EmptyCountry();
         }
 
-        if (bytes(metadataURI).length == 0) {
-            revert EmptyMetadataURI();
+        if (bytes(kind).length == 0) {
+            revert EmptyKind();
+        }
+
+        if (bytes(description).length == 0) {
+            revert EmptyDescription();
         }
 
         memoryId = memoryCount + 1;
@@ -89,22 +88,23 @@ contract Atlas {
         memories[memoryId] = Memory({
             id: memoryId,
             creator: msg.sender,
-            latitudeE6: latitudeE6,
-            longitudeE6: longitudeE6,
-            metadataURI: metadataURI,
+            title: title,
+            country: country,
+            kind: kind,
+            description: description,
             createdAt: createdAt
         });
 
         memoriesByCreator[msg.sender].push(memoryId);
         memoryCount = memoryId;
 
-        emit MemoryCreated(memoryId, msg.sender, latitudeE6, longitudeE6, metadataURI, createdAt);
+        emit MemoryCreated(memoryId, msg.sender, title, country, kind, description, createdAt);
     }
 
     /// @notice Return a published memory by ID.
     /// @param memoryId Memory ID to read.
     /// @return memoryItem The stored memory.
-    function getMemory(uint256 memoryId) external view returns (Memory memoryItem) {
+    function getMemory(uint256 memoryId) external view returns (Memory memory memoryItem) {
         if (memoryId == 0 || memoryId > memoryCount) {
             revert MemoryDoesNotExist();
         }

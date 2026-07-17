@@ -1238,3 +1238,32 @@ a {
     font-size: clamp(2.9rem, 17vw, 4.4rem);
   }
 }
+
+.atlas-toast-container.Toastify__toast-container {
+  bottom: 1.25rem;
+  left: auto;
+  right: 1.25rem;
+  top: auto;
+  transform: none;
+  width: min(calc(100vw - 2rem), 28rem);
+  z-index: 1400;
+}
+
+.atlas-toast.Toastify__toast {
+  border: 1px solid rgba(110, 231, 183, 0.22);
+  border-radius: 1rem;
+  background: rgba(7, 19, 15, 0.96);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  color: white;
+  font-family: inherit;
+  padding: 1rem;
+}
+
+.atlas-toast .Toastify__toast-icon {
+  width: 2rem;
+}
+
+.atlas-toast .Toastify__close-button {
+  color: white;
+  opacity: 0.74;
+}

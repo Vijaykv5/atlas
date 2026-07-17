@@ -20,14 +20,14 @@ export function HeroSection() {
         className="reveal reveal-up relative z-10 max-w-5xl text-balance text-5xl font-semibold leading-[0.95] tracking-normal text-white md:text-7xl lg:text-8xl"
         style={revealStyle(TIMING.heroTitle)}
       >
-        Every place has a story
+        Every memory can last
       </h1>
       <p
         className="reveal reveal-up relative z-10 mt-6 max-w-3xl text-pretty text-lg leading-8 text-white/68 md:text-xl"
         style={revealStyle(TIMING.heroCopy)}
       >
-        Drop a pin anywhere in the world, add photos, video, or voice, and let
-        AI turn the moment into a permanent story on Avalanche
+        Write the title, country, type, and note, then store the memory directly
+        on Avalanche.
       </p>
 
       <div
@@ -66,10 +66,10 @@ export function HeroSection() {
         <div className="pin pin-two" aria-hidden="true" />
         <div className="pin pin-three" aria-hidden="true" />
         <div className="story-chip story-chip-one" aria-hidden="true">
-          voice note saved
+          memory note saved
         </div>
         <div className="story-chip story-chip-two" aria-hidden="true">
-          photo story minted
+          on-chain story minted
         </div>
         <div className="story-trace story-trace-one" aria-hidden="true" />
         <div className="story-trace story-trace-two" aria-hidden="true" />

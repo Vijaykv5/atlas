@@ -13,7 +13,7 @@ export function HowItWorks() {
       >
         <p className="section-kicker">How it works</p>
         <h2 className="mt-5 text-balance text-4xl font-semibold leading-tight text-white md:text-6xl">
-          Turn a location into a living memory.
+          Turn a moment into an on-chain memory.
         </h2>
       </div>
 

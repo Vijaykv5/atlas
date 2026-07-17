@@ -12,13 +12,15 @@ async function main() {
   const address = await atlas.getAddress();
 
   const deploymentTransaction = atlas.deploymentTransaction();
-  if (!deploymentTransaction) {
-    throw new Error("Could not find the Atlas deployment transaction.");
+  if (deploymentTransaction) {
+    await deploymentTransaction.wait();
   }
 
-  await deploymentTransaction.wait();
-
-  console.log("Atlas deployed and confirmed");
+  console.log(
+    deploymentTransaction
+      ? "Atlas deployed and confirmed"
+      : "Atlas deployment found and confirmed"
+  );
   console.log(`Contract address: ${address}`);
   console.log(`Network name: ${hre.network.name}`);
   console.log(`Chain ID: ${network.chainId.toString()}`);

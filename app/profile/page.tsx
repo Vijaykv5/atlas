@@ -35,7 +35,7 @@ export default function ProfilePage() {
           Your Atlas profile
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-white/62">
-          This is where your connected wallet, pinned memories, and on-chain Atlas activity can live.
+          This is where your connected wallet, saved memories, and on-chain Atlas activity can live.
         </p>
       </section>
     </main>

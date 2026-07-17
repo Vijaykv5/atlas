@@ -2,9 +2,10 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 
-const LATITUDE = 1_352_083;
-const LONGITUDE = 103_625_213;
-const METADATA_URI = "ipfs://bafy-atlas-memory";
+const TITLE = "The night we won together";
+const COUNTRY = "Singapore";
+const KIND = "story";
+const DESCRIPTION = "A permanent memory stored directly on Avalanche.";
 
 describe("Atlas", function () {
   async function deployAtlasFixture() {
@@ -19,7 +20,7 @@ describe("Atlas", function () {
   it("deploys successfully", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    expect(await atlas.getAddress()).to.properAddress;
+    expect(await atlas.getAddress()).to.match(/^0x[0-9a-fA-F]{40}$/);
   });
 
   it("memoryCount starts at zero", async function () {
@@ -31,7 +32,7 @@ describe("Atlas", function () {
   it("a user can create a valid memory", async function () {
     const { atlas, creator } = await deployAtlasFixture();
 
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
+    await atlas.createMemory(TITLE, COUNTRY, KIND, DESCRIPTION);
     const memory = await atlas.getMemory(1);
 
     expect(memory.creator).to.equal(creator.address);
@@ -40,7 +41,7 @@ describe("Atlas", function () {
   it("memoryCount increases after publishing", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
+    await atlas.createMemory(TITLE, COUNTRY, KIND, DESCRIPTION);
 
     expect(await atlas.memoryCount()).to.equal(1);
   });
@@ -48,49 +49,26 @@ describe("Atlas", function () {
   it("memory IDs begin at one", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    expect(await atlas.createMemory.staticCall(LATITUDE, LONGITUDE, METADATA_URI)).to.equal(1);
+    expect(await atlas.createMemory.staticCall(TITLE, COUNTRY, KIND, DESCRIPTION)).to.equal(1);
   });
 
-  it("stores the creator address correctly", async function () {
+  it("stores all on-chain memory fields correctly", async function () {
     const { atlas, creator } = await deployAtlasFixture();
 
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
+    await atlas.createMemory(TITLE, COUNTRY, KIND, DESCRIPTION);
     const memory = await atlas.getMemory(1);
 
     expect(memory.creator).to.equal(creator.address);
-  });
-
-  it("stores latitude correctly", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
-    const memory = await atlas.getMemory(1);
-
-    expect(memory.latitudeE6).to.equal(LATITUDE);
-  });
-
-  it("stores longitude correctly", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
-    const memory = await atlas.getMemory(1);
-
-    expect(memory.longitudeE6).to.equal(LONGITUDE);
-  });
-
-  it("stores the metadata URI correctly", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
-    const memory = await atlas.getMemory(1);
-
-    expect(memory.metadataURI).to.equal(METADATA_URI);
+    expect(memory.title).to.equal(TITLE);
+    expect(memory.country).to.equal(COUNTRY);
+    expect(memory.kind).to.equal(KIND);
+    expect(memory.description).to.equal(DESCRIPTION);
   });
 
   it("populates createdAt from the block timestamp", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    const tx = await atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI);
+    const tx = await atlas.createMemory(TITLE, COUNTRY, KIND, DESCRIPTION);
     const receipt = await tx.wait();
     const block = await ethers.provider.getBlock(receipt!.blockNumber);
     const memory = await atlas.getMemory(1);
@@ -104,68 +82,37 @@ describe("Atlas", function () {
 
     await time.setNextBlockTimestamp(timestamp);
 
-    await expect(atlas.createMemory(LATITUDE, LONGITUDE, METADATA_URI))
+    await expect(atlas.createMemory(TITLE, COUNTRY, KIND, DESCRIPTION))
       .to.emit(atlas, "MemoryCreated")
-      .withArgs(1, creator.address, LATITUDE, LONGITUDE, METADATA_URI, timestamp);
+      .withArgs(1, creator.address, TITLE, COUNTRY, KIND, DESCRIPTION, timestamp);
   });
 
-  it("accepts the minimum valid latitude", async function () {
+  it("reverts when title is empty", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    await expect(atlas.createMemory(-90_000_000, LONGITUDE, METADATA_URI)).to.not.be.reverted;
+    await expect(atlas.createMemory("", COUNTRY, KIND, DESCRIPTION))
+      .to.be.revertedWithCustomError(atlas, "EmptyTitle");
   });
 
-  it("accepts the maximum valid latitude", async function () {
+  it("reverts when country is empty", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    await expect(atlas.createMemory(90_000_000, LONGITUDE, METADATA_URI)).to.not.be.reverted;
+    await expect(atlas.createMemory(TITLE, "", KIND, DESCRIPTION))
+      .to.be.revertedWithCustomError(atlas, "EmptyCountry");
   });
 
-  it("accepts the minimum valid longitude", async function () {
+  it("reverts when kind is empty", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    await expect(atlas.createMemory(LATITUDE, -180_000_000, METADATA_URI)).to.not.be.reverted;
+    await expect(atlas.createMemory(TITLE, COUNTRY, "", DESCRIPTION))
+      .to.be.revertedWithCustomError(atlas, "EmptyKind");
   });
 
-  it("accepts the maximum valid longitude", async function () {
+  it("reverts when description is empty", async function () {
     const { atlas } = await deployAtlasFixture();
 
-    await expect(atlas.createMemory(LATITUDE, 180_000_000, METADATA_URI)).to.not.be.reverted;
-  });
-
-  it("reverts when latitude is below the minimum", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await expect(atlas.createMemory(-90_000_001, LONGITUDE, METADATA_URI))
-      .to.be.revertedWithCustomError(atlas, "InvalidLatitude");
-  });
-
-  it("reverts when latitude is above the maximum", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await expect(atlas.createMemory(90_000_001, LONGITUDE, METADATA_URI))
-      .to.be.revertedWithCustomError(atlas, "InvalidLatitude");
-  });
-
-  it("reverts when longitude is below the minimum", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await expect(atlas.createMemory(LATITUDE, -180_000_001, METADATA_URI))
-      .to.be.revertedWithCustomError(atlas, "InvalidLongitude");
-  });
-
-  it("reverts when longitude is above the maximum", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await expect(atlas.createMemory(LATITUDE, 180_000_001, METADATA_URI))
-      .to.be.revertedWithCustomError(atlas, "InvalidLongitude");
-  });
-
-  it("reverts when metadata URI is empty", async function () {
-    const { atlas } = await deployAtlasFixture();
-
-    await expect(atlas.createMemory(LATITUDE, LONGITUDE, ""))
-      .to.be.revertedWithCustomError(atlas, "EmptyMetadataURI");
+    await expect(atlas.createMemory(TITLE, COUNTRY, KIND, ""))
+      .to.be.revertedWithCustomError(atlas, "EmptyDescription");
   });
 
   it("reverts when reading memory ID zero", async function () {
@@ -183,8 +130,18 @@ describe("Atlas", function () {
   it("allows multiple users to publish memories", async function () {
     const { atlas, creator, otherCreator } = await deployAtlasFixture();
 
-    await atlas.connect(creator).createMemory(LATITUDE, LONGITUDE, "ipfs://creator-memory");
-    await atlas.connect(otherCreator).createMemory(-7_250_445, 112_768_845, "ipfs://other-memory");
+    await atlas.connect(creator).createMemory(
+      "First memory",
+      "Singapore",
+      "story",
+      "Creator memory",
+    );
+    await atlas.connect(otherCreator).createMemory(
+      "Second memory",
+      "Indonesia",
+      "photo",
+      "Other creator memory",
+    );
 
     const firstMemory = await atlas.getMemory(1);
     const secondMemory = await atlas.getMemory(2);
@@ -197,30 +154,33 @@ describe("Atlas", function () {
   it("allows one wallet to publish multiple memories", async function () {
     const { atlas, creator } = await deployAtlasFixture();
 
-    await atlas.connect(creator).createMemory(LATITUDE, LONGITUDE, "ipfs://first-memory");
-    await atlas.connect(creator).createMemory(-6_175_392, 106_827_153, "ipfs://second-memory");
+    await atlas.connect(creator).createMemory("First", "Singapore", "story", "First note");
+    await atlas.connect(creator).createMemory("Second", "Japan", "voice", "Second note");
 
     const creatorMemoryIds = await atlas.getMemoriesByCreator(creator.address);
 
-    expect(creatorMemoryIds).to.deep.equal([1n, 2n]);
+    expect(creatorMemoryIds).to.deep.equal([BigInt(1), BigInt(2)]);
   });
 
   it("getMemoriesByCreator returns the correct memory IDs", async function () {
     const { atlas, creator, otherCreator } = await deployAtlasFixture();
 
-    await atlas.connect(creator).createMemory(LATITUDE, LONGITUDE, "ipfs://first-memory");
-    await atlas.connect(otherCreator).createMemory(35_689_500, 139_691_700, "ipfs://other-memory");
-    await atlas.connect(creator).createMemory(48_856_600, 2_352_200, "ipfs://third-memory");
+    await atlas.connect(creator).createMemory("First", "Singapore", "story", "First note");
+    await atlas.connect(otherCreator).createMemory("Other", "Japan", "photo", "Other note");
+    await atlas.connect(creator).createMemory("Third", "France", "video", "Third note");
 
-    expect(await atlas.getMemoriesByCreator(creator.address)).to.deep.equal([1n, 3n]);
-    expect(await atlas.getMemoriesByCreator(otherCreator.address)).to.deep.equal([2n]);
+    expect(await atlas.getMemoriesByCreator(creator.address)).to.deep.equal([
+      BigInt(1),
+      BigInt(3),
+    ]);
+    expect(await atlas.getMemoriesByCreator(otherCreator.address)).to.deep.equal([BigInt(2)]);
   });
 
   it("prevents one user from affecting another user's stored memories", async function () {
     const { atlas, creator, otherCreator } = await deployAtlasFixture();
 
-    await atlas.connect(creator).createMemory(LATITUDE, LONGITUDE, "ipfs://creator-memory");
-    await atlas.connect(otherCreator).createMemory(-33_868_800, 151_209_300, "ipfs://other-memory");
+    await atlas.connect(creator).createMemory("Creator title", "Singapore", "story", "Creator note");
+    await atlas.connect(otherCreator).createMemory("Other title", "Australia", "photo", "Other note");
 
     const creatorMemory = await atlas.getMemory(1);
     const otherMemory = await atlas.getMemory(2);
@@ -228,10 +188,12 @@ describe("Atlas", function () {
     const otherMemoryIds = await atlas.getMemoriesByCreator(otherCreator.address);
 
     expect(creatorMemory.creator).to.equal(creator.address);
-    expect(creatorMemory.metadataURI).to.equal("ipfs://creator-memory");
+    expect(creatorMemory.title).to.equal("Creator title");
+    expect(creatorMemory.description).to.equal("Creator note");
     expect(otherMemory.creator).to.equal(otherCreator.address);
-    expect(otherMemory.metadataURI).to.equal("ipfs://other-memory");
-    expect(creatorMemoryIds).to.deep.equal([1n]);
-    expect(otherMemoryIds).to.deep.equal([2n]);
+    expect(otherMemory.title).to.equal("Other title");
+    expect(otherMemory.description).to.equal("Other note");
+    expect(creatorMemoryIds).to.deep.equal([BigInt(1)]);
+    expect(otherMemoryIds).to.deep.equal([BigInt(2)]);
   });
 });
