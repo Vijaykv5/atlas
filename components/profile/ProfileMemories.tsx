@@ -12,6 +12,10 @@ type ProfileMemory = {
   country: string;
   kind: string;
   description: string;
+  imageCid: string;
+  imageDataUrl: string;
+  voiceDataUrl: string;
+  nftTokenId: string;
   createdAt: string;
 };
 
@@ -192,6 +196,17 @@ export function ProfileMemories() {
               key={memory.id}
               className="rounded-lg border border-white/10 bg-white/[0.04] p-5 transition-colors duration-150 hover:border-[#f4b541]/50"
             >
+              {memory.imageDataUrl ? (
+                <div className="relative mb-5 aspect-[16/9] overflow-hidden rounded-lg bg-white/[0.04]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={memory.imageDataUrl}
+                    alt={memory.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : null}
+
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-[#f4b541]">
@@ -210,16 +225,33 @@ export function ProfileMemories() {
                 {memory.description}
               </p>
 
+              {memory.voiceDataUrl ? (
+                <audio
+                  controls
+                  src={memory.voiceDataUrl}
+                  className="mt-5 h-10 w-full"
+                >
+                  <track kind="captions" />
+                </audio>
+              ) : null}
+
               <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-4 text-sm text-white/56 sm:flex-row sm:items-center sm:justify-between">
                 <span>{formatDate(memory.createdAt)}</span>
-                <a
-                  href={`${SNOWTRACE_TX_URL}/${memory.txHash}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-[#f4b541] transition-colors duration-150 hover:text-[#ffd37a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  {shortenHash(memory.txHash)}
-                </a>
+                <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                  {memory.nftTokenId ? (
+                    <span className="rounded-full border border-[#f4b541]/30 bg-[#f4b541]/10 px-3 py-1 text-xs font-black text-[#f4b541]">
+                      NFT #{memory.nftTokenId}
+                    </span>
+                  ) : null}
+                  <a
+                    href={`${SNOWTRACE_TX_URL}/${memory.txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-[#f4b541] transition-colors duration-150 hover:text-[#ffd37a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                  >
+                    {shortenHash(memory.txHash)}
+                  </a>
+                </div>
               </div>
             </article>
           ))}

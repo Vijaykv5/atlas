@@ -29,6 +29,10 @@ type SavedMemoryResponse = {
   country: string;
   kind: string;
   description: string;
+  imageCid: string;
+  imageDataUrl: string;
+  voiceDataUrl: string;
+  nftTokenId: string;
   createdAt: string;
 };
 
@@ -45,6 +49,7 @@ const AVALANCHE_FUJI = {
 };
 
 const ATLAS_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS;
+const ATLAS_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_ATLAS_PUBLIC_APP_URL;
 
 const BuilderGlobe = dynamic(() => import("./BuilderGlobe"), {
   ssr: false,
@@ -55,6 +60,8 @@ const COUNTRY_DRAWER_TIMING = {
   cardInitialDelayMs: 120,
   cardStaggerMs: 45,
 };
+
+const MAX_DB_MEDIA_FILE_BYTES = 2.5 * 1024 * 1024;
 
 function GlobeLoadingState() {
   return (
@@ -141,6 +148,9 @@ function toAtlasMemory(
     creator: memory.creatorAddress,
     txHash: memory.txHash,
     description: memory.description,
+    imageCid: memory.imageCid,
+    imageDataUrl: memory.imageDataUrl,
+    voiceDataUrl: memory.voiceDataUrl,
     createdAt: memory.createdAt,
     coordinates,
   };
@@ -210,7 +220,6 @@ export function GlobeExperience() {
   });
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [focusedCountry, setFocusedCountry] = useState<string | null>(null);
-  const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
   const [searchableCountries, setSearchableCountries] = useState<string[]>([]);
   const [countryCoordinates, setCountryCoordinates] = useState(COUNTRY_COORDS);
   const [savedMemoryRows, setSavedMemoryRows] = useState<SavedMemoryResponse[]>([]);
@@ -244,14 +253,12 @@ export function GlobeExperience() {
   const clearSelection = useCallback(() => {
     setSelectedCountry(null);
     setFocusedCountry(null);
-    setHoveredCountry(null);
   }, []);
 
   const changeMode = useCallback((nextMode: AtlasMode) => {
     setMode(nextMode);
     setSelectedCountry(null);
     setFocusedCountry(null);
-    setHoveredCountry(null);
 
     const url = nextMode === "create" ? "/atlas?mode=create" : "/atlas";
     window.history.replaceState(null, "", url);
@@ -369,14 +376,14 @@ export function GlobeExperience() {
   const handleSelectCountry = useCallback((country: string) => {
     setSelectedCountry(country);
     setFocusedCountry(country);
-    setHoveredCountry(null);
   }, []);
 
   const handleFocusCountry = useCallback((country: string) => {
     setFocusedCountry(country);
     setSelectedCountry(null);
-    setHoveredCountry(null);
   }, []);
+
+  const handleCountryHover = useCallback(() => {}, []);
 
   if (showLoadscreen) {
     return (
@@ -396,7 +403,7 @@ export function GlobeExperience() {
           memories={allMemories}
           highlightedCountry={selectedCountry || focusedCountry}
           onCountryClick={handleSelectCountry}
-          onCountryHover={setHoveredCountry}
+          onCountryHover={handleCountryHover}
         />
       ) : (
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(244,181,65,0.11),transparent_18rem),radial-gradient(circle_at_50%_60%,rgba(155,69,254,0.22),transparent_28rem)]" />
@@ -427,12 +434,6 @@ export function GlobeExperience() {
             countryStats={countryStats}
             selectedCountry={focusedCountry || selectedCountry}
             onSelect={handleSelectCountry}
-          />
-          <StatusPill
-            selectedCountry={selectedCountry}
-            focusedCountry={focusedCountry}
-            hoveredCountry={hoveredCountry}
-            memoryCount={allMemories.length}
           />
         </>
       ) : null}
@@ -497,6 +498,8 @@ function CreateMemoryPanel({
   const [country, setCountry] = useState("");
   const [kind, setKind] = useState("story");
   const [description, setDescription] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const walletConnected = walletStatus === "connected";
@@ -506,7 +509,8 @@ function CreateMemoryPanel({
     title.trim() &&
     country.trim() &&
     kind.trim() &&
-    description.trim();
+    description.trim() &&
+    imageFile;
 
   const refreshWalletConnection = useCallback(async () => {
     const connected = await isWalletConnected();
@@ -546,6 +550,8 @@ function CreateMemoryPanel({
       setCountry("");
       setKind("story");
       setDescription("");
+      setImageFile(null);
+      setVoiceFile(null);
       setFormError("");
     }, 0);
 
@@ -567,7 +573,7 @@ function CreateMemoryPanel({
     const trimmedKind = kind.trim();
     const trimmedDescription = description.trim();
 
-    if (!trimmedTitle || !trimmedCountry || !trimmedKind || !trimmedDescription) {
+    if (!trimmedTitle || !trimmedCountry || !trimmedKind || !trimmedDescription || !imageFile) {
       setFormError("Fill every field before publishing.");
       return;
     }
@@ -585,6 +591,12 @@ function CreateMemoryPanel({
     try {
       setIsSubmitting(true);
       setFormError("");
+      const [imageDataUrl, voiceDataUrl] = await Promise.all([
+        fileToDataURL(imageFile),
+        voiceFile ? fileToDataURL(voiceFile) : Promise.resolve(""),
+      ]);
+      const mediaId = await createMediaId(imageDataUrl);
+      const metadataUrl = createNftMetadataUrl(mediaId);
       await ensureAvalancheFuji(window.ethereum);
       const [account] = await window.ethereum.request<string[]>({
         method: "eth_requestAccounts",
@@ -605,10 +617,16 @@ function CreateMemoryPanel({
               trimmedCountry,
               trimmedKind,
               trimmedDescription,
+              metadataUrl,
             ),
           },
         ],
       });
+      const nftTokenId = await waitForMintedMemoryTokenId(
+        window.ethereum,
+        txHash,
+        ATLAS_CONTRACT_ADDRESS,
+      );
 
       const saveResponse = await fetch("/api/memories", {
         method: "POST",
@@ -622,7 +640,11 @@ function CreateMemoryPanel({
           country: trimmedCountry,
           kind: trimmedKind,
           description: trimmedDescription,
+          imageCid: metadataUrl,
+          imageDataUrl,
+          voiceDataUrl,
           contractAddress: ATLAS_CONTRACT_ADDRESS,
+          nftTokenId,
         }),
       });
       const savedResult = (await saveResponse.json().catch(() => null)) as {
@@ -645,7 +667,9 @@ function CreateMemoryPanel({
         >
           <span className="block font-black">Memory creation successful</span>
           <span className="block text-white/72">
-            View transaction {txHash.slice(0, 10)}...{txHash.slice(-6)} on Avalanche Fuji
+            {nftTokenId
+              ? `Minted Atlas Memory NFT #${nftTokenId}`
+              : "NFT mint submitted"}
           </span>
         </a>,
         {
@@ -656,6 +680,8 @@ function CreateMemoryPanel({
       setCountry("");
       setKind("story");
       setDescription("");
+      setImageFile(null);
+      setVoiceFile(null);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Transaction was not submitted.");
     } finally {
@@ -665,23 +691,20 @@ function CreateMemoryPanel({
 
   return (
     <>
-      <section className="absolute inset-x-4 bottom-4 top-44 z-20 mx-auto max-w-5xl overflow-y-auto rounded-[2rem] border border-white/10 bg-black/62 p-5 shadow-2xl shadow-black/45 backdrop-blur-xl sm:top-28 md:p-8">
-        <div className="mx-auto max-w-4xl">
-          <div className="mb-6 text-center">
+      <section className="absolute inset-x-4 bottom-5 top-36 z-20 mx-auto max-w-[58rem] overflow-hidden rounded-[1.75rem] border border-white/10 bg-black/62 p-4 shadow-2xl shadow-black/45 backdrop-blur-xl sm:top-28 md:p-5">
+        <div className="mx-auto flex h-full max-w-3xl flex-col justify-center">
+          <div className="mb-5 text-center">
             <p className="text-xs font-black uppercase tracking-[0.3em] text-[#f4b541]">
               create on-chain
             </p>
-            <h1 className="mt-3 text-4xl font-semibold leading-none text-white md:text-6xl">
+            <h1 className="mt-2 text-4xl font-semibold leading-none text-white md:text-5xl">
               Create your Atlas memory
             </h1>
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-white/62">
-              Write the memory and store it directly on Avalanche.
-            </p>
           </div>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#0d0d10]/92 p-5 shadow-2xl shadow-black/30 md:p-7">
+          <div className="rounded-[1.5rem] border border-white/10 bg-[#0d0d10]/92 p-4 shadow-2xl shadow-black/30 md:p-5">
             {walletStatus === "checking" ? (
-              <div className="grid min-h-[28rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
+              <div className="grid min-h-[22rem] place-items-center rounded-3xl border border-white/10 bg-white/[0.04] p-8 text-center">
                 <div className="max-w-md">
                   <h2 className="text-3xl font-semibold leading-tight text-white">
                     Checking wallet
@@ -689,7 +712,7 @@ function CreateMemoryPanel({
                 </div>
               </div>
             ) : !walletConnected ? (
-              <div className="grid min-h-[28rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
+              <div className="grid min-h-[22rem] place-items-center rounded-3xl border border-[#f4b541]/25 bg-[#f4b541]/10 p-8 text-center">
                 <div className="max-w-md">
                   <h2 className="text-3xl font-semibold leading-tight text-white">
                     Wallet required
@@ -698,27 +721,94 @@ function CreateMemoryPanel({
               </div>
             ) : (
               <form onSubmit={submitMemory}>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="sm:col-span-2">
-                    <span className="text-sm font-bold text-white/76">Memory title *</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Memory title *
+                    </span>
                     <input
                       required
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
                       placeholder="The night we won together"
-                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     />
                   </label>
 
                   <label>
-                    <span className="text-sm font-bold text-white/76">Country *</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Memory image *
+                    </span>
+                    <div className="mt-2 flex min-h-11 items-center rounded-xl border border-dashed border-white/14 bg-white/[0.045] px-4 py-2">
+                      <input
+                        required
+                        type="file"
+                        accept="image/*"
+                        onChange={(event) => {
+                          const nextFile = event.target.files?.[0] ?? null;
+                          const validationError = validateMediaFile(nextFile, "image");
+                          if (validationError) {
+                            event.target.value = "";
+                            setImageFile(null);
+                            setFormError(validationError);
+                            return;
+                          }
+
+                          setImageFile(nextFile);
+                          setFormError("");
+                        }}
+                        className="w-full text-sm font-semibold text-white/66 file:mr-4 file:min-h-9 file:rounded-full file:border-0 file:bg-[#f4b541] file:px-4 file:text-sm file:font-black file:text-black hover:file:bg-[#ffd37a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      />
+                    </div>
+                    {imageFile ? (
+                      <p className="mt-2 truncate text-xs font-semibold text-white/42">
+                        {imageFile.name}
+                      </p>
+                    ) : null}
+                  </label>
+
+                  <label>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Voice message
+                    </span>
+                    <div className="mt-2 flex min-h-11 items-center rounded-xl border border-dashed border-white/14 bg-white/[0.045] px-4 py-2">
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(event) => {
+                          const nextFile = event.target.files?.[0] ?? null;
+                          const validationError = validateMediaFile(nextFile, "audio");
+                          if (validationError) {
+                            event.target.value = "";
+                            setVoiceFile(null);
+                            setFormError(validationError);
+                            return;
+                          }
+
+                          setVoiceFile(nextFile);
+                          setFormError("");
+                        }}
+                        className="w-full text-sm font-semibold text-white/66 file:mr-4 file:min-h-9 file:rounded-full file:border-0 file:bg-white/14 file:px-4 file:text-sm file:font-black file:text-white hover:file:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      />
+                    </div>
+                    {voiceFile ? (
+                      <p className="mt-2 truncate text-xs font-semibold text-white/42">
+                        {voiceFile.name}
+                      </p>
+                    ) : null}
+                  </label>
+
+                  <label>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Country *
+                    </span>
                     <input
                       required
                       value={country}
                       onChange={(event) => setCountry(event.target.value)}
                       placeholder={countries[0] || "Japan"}
                       list="atlas-countries"
-                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     />
                     <datalist id="atlas-countries">
                       {countries.map((item) => (
@@ -728,12 +818,14 @@ function CreateMemoryPanel({
                   </label>
 
                   <label>
-                    <span className="text-sm font-bold text-white/76">Memory type *</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Memory type *
+                    </span>
                     <select
                       required
                       value={kind}
                       onChange={(event) => setKind(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.055] px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     >
                       <option value="story">Story</option>
                       <option value="reflection">Reflection</option>
@@ -743,14 +835,16 @@ function CreateMemoryPanel({
                   </label>
 
                   <label className="sm:col-span-2">
-                    <span className="text-sm font-bold text-white/76">Memory note *</span>
+                    <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/66">
+                      Memory note *
+                    </span>
                     <textarea
                       required
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder="What happened here?"
-                      rows={4}
-                      className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold leading-6 text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                      rows={3}
+                      className="mt-2 h-16 w-full resize-none rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold leading-6 text-white placeholder:text-white/32 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     />
                   </label>
                 </div>
@@ -769,9 +863,9 @@ function CreateMemoryPanel({
                     type="submit"
                     disabled={!canSubmit}
                     aria-busy={isSubmitting}
-                    className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#f4b541] px-6 text-sm font-black text-black transition-transform duration-150 hover:scale-[1.01] disabled:cursor-not-allowed disabled:bg-white/14 disabled:text-white/36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#f4b541] px-6 text-sm font-black text-black transition-transform duration-150 hover:scale-[1.01] disabled:cursor-not-allowed disabled:bg-white/14 disabled:text-white/36 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4b541] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
-                    {isSubmitting ? "Publishing..." : "Create memory on-chain"}
+                    {isSubmitting ? "Saving and publishing..." : "Create memory on-chain"}
                   </button>
                 </div>
               </form>
@@ -836,27 +930,82 @@ function encodeCreateMemoryCalldata(
   country: string,
   kind: string,
   description: string,
+  imageCid: string,
 ) {
-  const selector = "8937a0d7";
-  const encodedTitle = encodeString(title);
-  const encodedCountry = encodeString(country);
-  const encodedKind = encodeString(kind);
-  const encodedDescription = encodeString(description);
-  const titleOffset = encodeUint256(BigInt(128));
-  const countryOffset = encodeUint256(BigInt(128 + encodedTitle.length / 2));
-  const kindOffset = encodeUint256(
-    BigInt(128 + encodedTitle.length / 2 + encodedCountry.length / 2),
-  );
-  const descriptionOffset = encodeUint256(
-    BigInt(
-      128 +
-        encodedTitle.length / 2 +
-        encodedCountry.length / 2 +
-        encodedKind.length / 2,
-    ),
-  );
+  return encodeStringCalldata("ed2a4b14", [title, country, kind, description, imageCid]);
+}
 
-  return `0x${selector}${titleOffset}${countryOffset}${kindOffset}${descriptionOffset}${encodedTitle}${encodedCountry}${encodedKind}${encodedDescription}`;
+type TransactionReceipt = {
+  status?: string;
+  logs?: Array<{
+    address?: string;
+    topics?: string[];
+  }>;
+};
+
+async function waitForMintedMemoryTokenId(
+  provider: EthereumProvider,
+  txHash: string,
+  contractAddress: string,
+) {
+  const receipt = await waitForTransactionReceipt(provider, txHash);
+
+  if (receipt?.status && receipt.status !== "0x1") {
+    throw new Error("The memory NFT transaction failed.");
+  }
+
+  return extractMemoryTokenId(receipt, contractAddress);
+}
+
+async function waitForTransactionReceipt(provider: EthereumProvider, txHash: string) {
+  const maxAttempts = 45;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const receipt = await provider.request<TransactionReceipt | null>({
+      method: "eth_getTransactionReceipt",
+      params: [txHash],
+    });
+
+    if (receipt) {
+      return receipt;
+    }
+
+    await sleep(2_000);
+  }
+
+  return null;
+}
+
+function extractMemoryTokenId(receipt: TransactionReceipt | null, contractAddress: string) {
+  const memoryCreatedLog = receipt?.logs?.find((log) => {
+    const isAtlasContract = log.address?.toLowerCase() === contractAddress.toLowerCase();
+    return isAtlasContract && log.topics?.length === 3;
+  });
+  const tokenIdTopic = memoryCreatedLog?.topics?.[1];
+
+  if (!tokenIdTopic) {
+    return "";
+  }
+
+  return BigInt(tokenIdTopic).toString();
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function encodeStringCalldata(selector: string, values: string[]) {
+  const encodedValues = values.map(encodeString);
+  let currentOffset = values.length * 32;
+  const offsets = encodedValues.map((encodedValue) => {
+    const offset = encodeUint256(BigInt(currentOffset));
+    currentOffset += encodedValue.length / 2;
+    return offset;
+  });
+
+  return `0x${selector}${offsets.join("")}${encodedValues.join("")}`;
 }
 
 function encodeUint256(value: bigint) {
@@ -868,6 +1017,55 @@ function encodeString(value: string) {
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   const paddingLength = (64 - (hex.length % 64)) % 64;
   return `${encodeUint256(BigInt(bytes.length))}${hex}${"0".repeat(paddingLength)}`;
+}
+
+function validateMediaFile(file: File | null, expectedType: "image" | "audio") {
+  if (!file) {
+    return "";
+  }
+
+  if (!file.type.startsWith(`${expectedType}/`)) {
+    return expectedType === "image" ? "Choose an image file." : "Choose an audio file.";
+  }
+
+  if (file.size > MAX_DB_MEDIA_FILE_BYTES) {
+    return `${expectedType === "image" ? "Image" : "Voice"} must be smaller than 2.5 MB.`;
+  }
+
+  return "";
+}
+
+function fileToDataURL(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read media file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function createMediaId(imageDataUrl: string) {
+  const bytes = new TextEncoder().encode(imageDataUrl);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hashBuffer), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function createNftMetadataUrl(mediaId: string) {
+  const publicAppUrl = getPublicAppUrl();
+
+  return `${publicAppUrl}/api/memories/metadata/${mediaId}`;
+}
+
+function getPublicAppUrl() {
+  const configuredUrl = ATLAS_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
+
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  return window.location.origin;
 }
 
 function TopBar() {
@@ -1022,27 +1220,6 @@ function CountryRail({
   );
 }
 
-function StatusPill({
-  selectedCountry,
-  focusedCountry,
-  hoveredCountry,
-  memoryCount,
-}: {
-  selectedCountry: string | null;
-  focusedCountry: string | null;
-  hoveredCountry: string | null;
-  memoryCount: number;
-}) {
-  const label = selectedCountry || focusedCountry || hoveredCountry || "Auto-rotating";
-
-  return (
-    <div className="pointer-events-none absolute bottom-24 right-4 z-20 rounded-full border border-white/10 bg-black/48 px-4 py-3 text-xs text-white/64 shadow-2xl shadow-black/30 backdrop-blur-md">
-      <span className="mr-2 inline-block size-2 rounded-full bg-[#9B45FE] shadow-[0_0_16px_rgba(155,69,254,0.85)]" />
-      {label} · {memoryCount} memories
-    </div>
-  );
-}
-
 function SelectedCountryPanel({
   memories,
   stat,
@@ -1149,6 +1326,7 @@ function MemoryCard({
 }) {
   const creator = getMemoryCreator(memory);
   const gradient = getMemoryGradient(index);
+  const hasImage = Boolean(memory.imageDataUrl);
 
   return (
     <article
@@ -1157,8 +1335,17 @@ function MemoryCard({
         animationDelay: `${COUNTRY_DRAWER_TIMING.cardInitialDelayMs + index * COUNTRY_DRAWER_TIMING.cardStaggerMs}ms`,
       }}
     >
-      <div className={`relative h-36 ${gradient}`}>
-        <div className="absolute right-4 top-4 rounded-xl border border-white/12 bg-black/22 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-white/76 backdrop-blur-md">
+      <div className={`relative h-36 ${hasImage ? "bg-black" : gradient}`}>
+        {memory.imageDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={memory.imageDataUrl}
+            alt={memory.title}
+            className="h-full w-full object-cover"
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/10" />
+        <div className="absolute right-4 top-4 rounded-xl border border-white/12 bg-black/38 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-white/82 backdrop-blur-md">
           {memory.kind}
         </div>
         <div className="absolute -bottom-8 left-7 grid size-20 place-items-center rounded-full border-4 border-[#0d0d10] bg-[#2084a8] text-3xl font-black text-white shadow-xl">
@@ -1177,6 +1364,15 @@ function MemoryCard({
         <p className="mt-3 text-sm leading-6 text-white/48">
           A public Atlas memory anchored to this place for others to discover, celebrate, and remember.
         </p>
+        {memory.voiceDataUrl ? (
+          <audio
+            controls
+            src={memory.voiceDataUrl}
+            className="mt-5 h-10 w-full"
+          >
+            <track kind="captions" />
+          </audio>
+        ) : null}
       </div>
     </article>
   );

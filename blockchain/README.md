@@ -1,6 +1,8 @@
 # Atlas Blockchain
 
-Atlas stores immutable memory anchors on Avalanche Fuji. The contract records the creator wallet, memory title, country, memory type, note, and block timestamp directly on-chain.
+Atlas stores immutable memory anchors on Avalanche Fuji and mints each memory as
+an ERC-721 NFT. The contract records the creator wallet, memory title, country,
+memory type, note, NFT metadata URI, and block timestamp directly on-chain.
 
 ## Install
 
@@ -66,13 +68,18 @@ Verify the deployment by opening the printed Snowtrace testnet URL.
 
 ## Contract Functions
 
-`createMemory(string calldata title, string calldata country, string calldata kind, string calldata description)` publishes an immutable memory and returns its new ID. IDs start at `1`.
+`createMemory(string calldata title, string calldata country, string calldata kind, string calldata description, string calldata imageCid)` publishes an immutable memory, mints an Atlas Memories NFT to the caller, and returns its new ID. IDs start at `1`.
 
 `getMemory(uint256 memoryId)` returns a stored memory and reverts for ID `0` or an ID that has not been published.
 
 `getMemoriesByCreator(address creator)` returns all memory IDs published by a wallet.
 
 `memoryCount()` returns the total number of published memories.
+
+`ownerOf(uint256 tokenId)`, `balanceOf(address owner)`, `tokenURI(uint256 tokenId)`,
+`approve`, `setApprovalForAll`, `transferFrom`, and `safeTransferFrom` provide
+the ERC-721 wallet surface for minted memories. A memory's NFT token ID is the
+same number as its memory ID.
 
 ## Memory Format
 
@@ -85,6 +92,7 @@ title: The night we won together
 country: Singapore
 kind: story
 description: A permanent memory stored directly on Avalanche.
+imageCid: https://your-public-app.example/api/memories/metadata/<sha256-image-id>
 ```
 
 The contract rejects empty title, country, kind, and description values.
@@ -94,10 +102,13 @@ The contract rejects empty title, country, kind, and description values.
 Stored on-chain:
 
 - Creator address
+- ERC-721 token owner
 - Memory title
 - Country
 - Memory type
 - Memory note
+- NFT metadata URI
 - Block timestamp
 
-The contract has no owner, admin, payments, tokens, NFTs, external calls, upgradeability, edit path, or delete path.
+The contract has no owner, admin, payments, external calls, upgradeability, edit
+path, or delete path.

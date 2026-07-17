@@ -10,10 +10,15 @@ type MemoryPayload = {
   country?: string;
   kind?: string;
   description?: string;
+  imageCid?: string;
+  imageDataUrl?: string;
+  voiceDataUrl?: string;
   contractAddress?: string;
+  nftTokenId?: string;
 };
 
 const MAX_TEXT_LENGTH = 2_000;
+const MAX_MEDIA_DATA_URL_LENGTH = 7_000_000;
 const DEFAULT_LIMIT = 100;
 
 function getDatabaseURL() {
@@ -47,15 +52,43 @@ async function ensureMemoriesTable() {
       country TEXT NOT NULL,
       kind TEXT NOT NULL,
       description TEXT NOT NULL,
+      image_cid TEXT NOT NULL DEFAULT '',
+      image_data_url TEXT NOT NULL DEFAULT '',
+      voice_data_url TEXT NOT NULL DEFAULT '',
       chain_id INTEGER NOT NULL DEFAULT 43113,
       contract_address TEXT,
+      nft_token_id TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `;
+
+  await sql`
+    ALTER TABLE atlas_memories
+    ADD COLUMN IF NOT EXISTS image_cid TEXT NOT NULL DEFAULT ''
+  `;
+
+  await sql`
+    ALTER TABLE atlas_memories
+    ADD COLUMN IF NOT EXISTS image_data_url TEXT NOT NULL DEFAULT ''
+  `;
+
+  await sql`
+    ALTER TABLE atlas_memories
+    ADD COLUMN IF NOT EXISTS voice_data_url TEXT NOT NULL DEFAULT ''
+  `;
+
+  await sql`
+    ALTER TABLE atlas_memories
+    ADD COLUMN IF NOT EXISTS nft_token_id TEXT NOT NULL DEFAULT ''
   `;
 }
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, MAX_TEXT_LENGTH) : "";
+}
+
+function cleanDataURL(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function isAddress(value: string) {
@@ -75,8 +108,12 @@ function toMemoryResponse(row: Record<string, unknown>) {
     country: row.country,
     kind: row.kind,
     description: row.description,
+    imageCid: row.image_cid,
+    imageDataUrl: row.image_data_url,
+    voiceDataUrl: row.voice_data_url,
     chainId: row.chain_id,
     contractAddress: row.contract_address,
+    nftTokenId: row.nft_token_id,
     createdAt: row.created_at,
   };
 }
@@ -102,8 +139,12 @@ export async function GET(request: Request) {
             country,
             kind,
             description,
+            image_cid,
+            image_data_url,
+            voice_data_url,
             chain_id,
             contract_address,
+            nft_token_id,
             created_at
           FROM atlas_memories
           WHERE LOWER(creator_address) = LOWER(${creator})
@@ -119,8 +160,12 @@ export async function GET(request: Request) {
             country,
             kind,
             description,
+            image_cid,
+            image_data_url,
+            voice_data_url,
             chain_id,
             contract_address,
+            nft_token_id,
             created_at
           FROM atlas_memories
           ORDER BY created_at DESC
@@ -150,7 +195,11 @@ export async function POST(request: Request) {
     const country = cleanText(body.country);
     const kind = cleanText(body.kind);
     const description = cleanText(body.description);
+    const imageCid = cleanText(body.imageCid);
+    const imageDataUrl = cleanDataURL(body.imageDataUrl);
+    const voiceDataUrl = cleanDataURL(body.voiceDataUrl);
     const contractAddress = cleanText(body.contractAddress);
+    const nftTokenId = cleanText(body.nftTokenId);
 
     if (!isTransactionHash(txHash)) {
       return NextResponse.json({ error: "Invalid transaction hash." }, { status: 400 });
@@ -167,8 +216,32 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!imageCid) {
+      return NextResponse.json({ error: "Image reference is required." }, { status: 400 });
+    }
+
+    if (!imageDataUrl.startsWith("data:image/")) {
+      return NextResponse.json({ error: "Image data is required." }, { status: 400 });
+    }
+
+    if (imageDataUrl.length > MAX_MEDIA_DATA_URL_LENGTH) {
+      return NextResponse.json({ error: "Image data is too large." }, { status: 400 });
+    }
+
+    if (voiceDataUrl && !voiceDataUrl.startsWith("data:audio/")) {
+      return NextResponse.json({ error: "Voice data must be audio." }, { status: 400 });
+    }
+
+    if (voiceDataUrl.length > MAX_MEDIA_DATA_URL_LENGTH) {
+      return NextResponse.json({ error: "Voice data is too large." }, { status: 400 });
+    }
+
     if (contractAddress && !isAddress(contractAddress)) {
       return NextResponse.json({ error: "Invalid contract address." }, { status: 400 });
+    }
+
+    if (nftTokenId && !/^\d+$/.test(nftTokenId)) {
+      return NextResponse.json({ error: "Invalid NFT token ID." }, { status: 400 });
     }
 
     await ensureMemoriesTable();
@@ -181,8 +254,12 @@ export async function POST(request: Request) {
         country,
         kind,
         description,
+        image_cid,
+        image_data_url,
+        voice_data_url,
         chain_id,
-        contract_address
+        contract_address,
+        nft_token_id
       )
       VALUES (
         ${txHash},
@@ -191,16 +268,24 @@ export async function POST(request: Request) {
         ${country},
         ${kind},
         ${description},
+        ${imageCid},
+        ${imageDataUrl},
+        ${voiceDataUrl},
         43113,
-        ${contractAddress || null}
+        ${contractAddress || null},
+        ${nftTokenId}
       )
       ON CONFLICT (tx_hash) DO UPDATE SET
         title = EXCLUDED.title,
         country = EXCLUDED.country,
         kind = EXCLUDED.kind,
         description = EXCLUDED.description,
+        image_cid = EXCLUDED.image_cid,
+        image_data_url = EXCLUDED.image_data_url,
+        voice_data_url = EXCLUDED.voice_data_url,
         creator_address = EXCLUDED.creator_address,
-        contract_address = EXCLUDED.contract_address
+        contract_address = EXCLUDED.contract_address,
+        nft_token_id = EXCLUDED.nft_token_id
       RETURNING
         id,
         tx_hash,
@@ -209,8 +294,12 @@ export async function POST(request: Request) {
         country,
         kind,
         description,
+        image_cid,
+        image_data_url,
+        voice_data_url,
         chain_id,
         contract_address,
+        nft_token_id,
         created_at
     `;
 

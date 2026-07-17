@@ -6,6 +6,9 @@ export type AtlasMemory = {
   creator?: string;
   txHash?: string;
   description?: string;
+  imageCid?: string;
+  imageDataUrl?: string;
+  voiceDataUrl?: string;
   createdAt?: string;
   coordinates: {
     lat: number;

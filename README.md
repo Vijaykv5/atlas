@@ -1,7 +1,9 @@
 # Atlas
 
-Atlas lets users write a memory and store its title, country, type, and note
-directly on Avalanche Fuji through the Atlas contract.
+Atlas lets users write a memory, save image/voice media in Neon, and mint the
+memory as an ERC-721 NFT on Avalanche Fuji through the Atlas contract. The
+on-chain memory ID is also the NFT token ID, so the memory can live in the
+creator's wallet.
 
 ## Environment
 
@@ -15,16 +17,28 @@ Set:
 
 ```env
 NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS=
+NEXT_PUBLIC_ATLAS_PUBLIC_APP_URL=
 DB_URL=
 ```
 
 `NEXT_PUBLIC_ATLAS_CONTRACT_ADDRESS` is required by the browser when submitting
-`createMemory(string title, string country, string kind, string description)`
-through the connected wallet. Use the Atlas contract address printed by the Fuji
+`createMemory(string title, string country, string kind, string description, string imageCid)`
+through the connected wallet. That transaction stores the memory fields and
+mints an Atlas Memories NFT to the connected wallet. The fifth argument is a DB
+backed public metadata URL. Use the Atlas contract address printed by the Fuji
 deploy.
 
+`NEXT_PUBLIC_ATLAS_PUBLIC_APP_URL` should be the public deployed app origin, for
+example `https://atlas.example.com`. Wallets and Snowtrace fetch the NFT metadata
+and image from off-site, so `http://localhost:3000` will not render in external
+wallets or explorers.
+
 `DB_URL` is required by `/api/memories` to store submitted memories in Neon after
-the wallet returns an Avalanche Fuji transaction hash.
+the wallet returns an Avalanche Fuji transaction hash. When the transaction
+receipt is available, the app also stores the minted NFT token ID. The
+`/api/memories/metadata/[mediaId]` route returns the NFT title, description,
+image, and attributes. The `/api/memories/media/[mediaId]` route serves stored
+memory images to wallets and explorers.
 
 To deploy the contract, configure the blockchain workspace:
 
